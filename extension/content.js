@@ -156,9 +156,8 @@ const observer = new IntersectionObserver((entries) => {
           lockScroll(5, dashboard);
           setTimeout(() => {
             unlockScroll();
-            scrollToNext(container);
-            dashboard.remove();
-          }, 15000);
+            setTimeout(() => { dashboard.remove(); }, 2000);
+          }, 5000);
         } else if (action === "WAIT") {
           setTimeout(() => {
             scrollToNext(container);
