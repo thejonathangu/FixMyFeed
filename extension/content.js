@@ -147,11 +147,13 @@ const observer = new IntersectionObserver((entries) => {
           setTimeout(() => {
             scrollToNext(container);
             dashboard.remove();
-          }, 1500);
+          }, 0);
         } else if (action === "LIKE_AND_STAY") {
-          const likeIcon = container.querySelector('[data-e2e="like-icon"]');
-          if (likeIcon) {
-            likeIcon.click();
+          if (response.data.autolike) {
+            const likeIcon = container.querySelector('[data-e2e="like-icon"]');
+            if (likeIcon) {
+              likeIcon.click();
+            }
           }
           lockScroll(5, dashboard);
           setTimeout(() => {

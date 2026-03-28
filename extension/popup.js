@@ -8,6 +8,7 @@ const toxicInput = document.getElementById("toxic-input");
 const interestAdd = document.getElementById("interest-add");
 const toxicAdd = document.getElementById("toxic-add");
 const statusEl = document.getElementById("status");
+const autolikeToggle = document.getElementById("autolike-toggle");
 
 function showStatus(msg, ok) {
   statusEl.textContent = msg;
@@ -32,7 +33,8 @@ function renderTags(container, keywords, type) {
 function saveSettings() {
   chrome.storage.local.set({
     interests: currentInterests,
-    toxic: currentToxic
+    toxic: currentToxic,
+    autolike: autolikeToggle.checked
   }, function() {
     renderTags(interestTags, currentInterests, "interest");
     renderTags(toxicTags, currentToxic, "toxic");
@@ -41,9 +43,10 @@ function saveSettings() {
 }
 
 function loadSettings() {
-  chrome.storage.local.get(["interests", "toxic"], function(data) {
+  chrome.storage.local.get(["interests", "toxic", "autolike"], function(data) {
     currentInterests = data.interests || ["software engineering", "cooking", "tennis"];
     currentToxic = data.toxic || ["prank", "gossip", "rage", "brainrot"];
+    autolikeToggle.checked = data.autolike !== false;
     renderTags(interestTags, currentInterests, "interest");
     renderTags(toxicTags, currentToxic, "toxic");
   });
@@ -67,5 +70,6 @@ interestAdd.addEventListener("click", function() { addKeyword("interest"); });
 toxicAdd.addEventListener("click", function() { addKeyword("toxic"); });
 interestInput.addEventListener("keydown", function(e) { if (e.key === "Enter") addKeyword("interest"); });
 toxicInput.addEventListener("keydown", function(e) { if (e.key === "Enter") addKeyword("toxic"); });
+autolikeToggle.addEventListener("change", function() { saveSettings(); });
 
 loadSettings();

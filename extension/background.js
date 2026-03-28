@@ -2,9 +2,10 @@ const API = "http://127.0.0.1:8000";
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "evaluate") {
-    chrome.storage.local.get(["interests", "toxic"], (data) => {
+    chrome.storage.local.get(["interests", "toxic", "autolike"], (data) => {
       var interests = data.interests || ["software engineering", "cooking", "tennis"];
       var toxic = data.toxic || ["prank", "gossip", "rage", "brainrot"];
+      var autolike = data.autolike !== false;
 
       fetch(API + "/evaluate", {
         method: "POST",
@@ -16,7 +17,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }),
       })
         .then((res) => res.json())
-        .then((result) => sendResponse({ success: true, data: result }))
+        .then((result) => {
+          result.autolike = autolike;
+          sendResponse({ success: true, data: result });
+        })
         .catch((err) => sendResponse({ success: false, error: err.message }));
     });
     return true;
