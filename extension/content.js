@@ -42,7 +42,11 @@ const observer = new IntersectionObserver((entries) => {
         dashboard.style.borderRadius = "6px";
         dashboard.style.border = "1px solid #39ff14";
         dashboard.style.pointerEvents = "none";
-        dashboard.textContent = "ACTION: " + action + " | SCORE: " + score;
+        var label = "ACTION: " + action + " | SCORE: " + score;
+        if (response.data.reason)
+          label += "\n" + response.data.reason;
+        dashboard.style.whiteSpace = "pre-line";
+        dashboard.textContent = label;
         document.body.appendChild(dashboard);
 
         setTimeout(() => {
@@ -54,6 +58,11 @@ const observer = new IntersectionObserver((entries) => {
             if (likeIcon) {
               likeIcon.click();
             }
+            setTimeout(() => {
+              scrollToNext(container);
+              dashboard.remove();
+            }, delayMs);
+          } else if (action === "WAIT") {
             setTimeout(() => {
               scrollToNext(container);
               dashboard.remove();
