@@ -9,6 +9,62 @@ function scrollToNext(container) {
   container.parentElement.scrollBy({ top: container.offsetHeight, behavior: "smooth" });
 }
 
+function cleanText(value) {
+  if (!value) return "";
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function firstText(container, selectors) {
+  for (var i = 0; i < selectors.length; i++) {
+    var node = container.querySelector(selectors[i]);
+    if (!node) continue;
+    var text = cleanText(node.textContent || node.innerText || "");
+    if (text) return text;
+  }
+  return "";
+}
+
+function parseCreatorFromLink(container) {
+  var link = container.querySelector('a[href^="/@"]');
+  if (!link) return "";
+  var href = link.getAttribute("href") || "";
+  var match = href.match(/\/(@[^/?#]+)/);
+  return match ? match[1] : "";
+}
+
+function extractHashtags(caption) {
+  var found = caption.match(/#[\p{L}\p{N}_]+/gu) || [];
+  var unique = [];
+  var seen = {};
+  for (var i = 0; i < found.length; i++) {
+    if (seen[found[i]]) continue;
+    seen[found[i]] = true;
+    unique.push(found[i]);
+  }
+  return unique;
+}
+
+function scrapeVideoData(container) {
+  var creator = firstText(container, [
+    '[data-e2e="video-author-uniqueid"]',
+    '[data-e2e="video-author-nickname"]',
+    'a[href^="/@"]'
+  ]);
+  var caption = firstText(container, [
+    '[data-e2e="video-desc"]',
+    'h1[data-e2e="browse-video-desc"]'
+  ]);
+
+  if (!creator) creator = parseCreatorFromLink(container);
+  if (creator && creator.charAt(0) !== "@") creator = "@" + creator.replace(/^@+/, "");
+
+  return {
+    creator: creator || "unknown",
+    caption: caption || "",
+    hashtags: extractHashtags(caption || "")
+  };
+}
+
 const observer = new IntersectionObserver((entries) => {
   entries.forEach((entry) => {
     if (!entry.isIntersecting) return;
@@ -19,6 +75,17 @@ const observer = new IntersectionObserver((entries) => {
     container.setAttribute("data-scanned", "true");
 
     const textContent = container.innerText || "";
+    const videoData = scrapeVideoData(container);
+
+    chrome.runtime.sendMessage({
+      action: "log_video",
+      data: {
+        action_type: "watched",
+        caption: videoData.caption,
+        hashtags: videoData.hashtags,
+        creator: videoData.creator
+      }
+    });
 
     chrome.runtime.sendMessage(
       { type: "evaluate", text: textContent },
