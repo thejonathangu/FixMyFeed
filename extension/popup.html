@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      width: 380px;
+      background: #0a0a0a;
+      color: #e0e0e0;
+      font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+      font-size: 13px;
+      padding: 20px;
+    }
+    h1 {
+      font-size: 16px;
+      color: #39ff14;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .subtitle {
+      font-size: 11px;
+      color: #555;
+      margin-bottom: 20px;
+      letter-spacing: 1px;
+    }
+    .section {
+      margin-bottom: 18px;
+    }
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .section-header .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    .dot-green { background: #39ff14; }
+    .dot-red { background: #ff3939; }
+    label {
+      font-size: 12px;
+      color: #aaa;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .tag-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 10px;
+      min-height: 28px;
+    }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: inherit;
+    }
+    .tag-interest {
+      background: rgba(57, 255, 20, 0.12);
+      border: 1px solid rgba(57, 255, 20, 0.3);
+      color: #39ff14;
+    }
+    .tag-toxic {
+      background: rgba(255, 57, 57, 0.12);
+      border: 1px solid rgba(255, 57, 57, 0.3);
+      color: #ff3939;
+    }
+    .tag button {
+      background: none;
+      border: none;
+      color: inherit;
+      cursor: pointer;
+      font-size: 14px;
+      line-height: 1;
+      opacity: 0.6;
+      padding: 0;
+    }
+    .tag button:hover {
+      opacity: 1;
+    }
+    .input-row {
+      display: flex;
+      gap: 6px;
+    }
+    input {
+      flex: 1;
+      background: #141414;
+      border: 1px solid #2a2a2a;
+      color: #e0e0e0;
+      padding: 8px 10px;
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 12px;
+      outline: none;
+    }
+    input:focus {
+      border-color: #39ff14;
+    }
+    input.toxic-input:focus {
+      border-color: #ff3939;
+    }
+    .btn {
+      padding: 8px 14px;
+      border: none;
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 12px;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: bold;
+    }
+    .btn-green {
+      background: #39ff14;
+      color: #0a0a0a;
+    }
+    .btn-green:hover {
+      background: #2ecc0f;
+    }
+    .btn-red {
+      background: #ff3939;
+      color: #0a0a0a;
+    }
+    .btn-red:hover {
+      background: #e02e2e;
+    }
+    .status {
+      font-size: 11px;
+      color: #555;
+      margin-top: 14px;
+      text-align: center;
+      min-height: 16px;
+      transition: color 0.2s;
+    }
+    .status.ok {
+      color: #39ff14;
+    }
+    .status.err {
+      color: #ff3939;
+    }
+    .divider {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      margin: 16px 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Shadow-Scroll</h1>
+  <p class="subtitle">anti-algorithmic filter</p>
+
+  <div class="section">
+    <div class="section-header">
+      <span class="dot dot-green"></span>
+      <label>Interests (+10 each)</label>
+    </div>
+    <div class="tag-container" id="interest-tags"></div>
+    <div class="input-row">
+      <input type="text" id="interest-input" placeholder="add interest...">
+      <button class="btn btn-green" id="interest-add">+</button>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <div class="section">
+    <div class="section-header">
+      <span class="dot dot-red"></span>
+      <label>Toxic keywords (-5 each)</label>
+    </div>
+    <div class="tag-container" id="toxic-tags"></div>
+    <div class="input-row">
+      <input type="text" id="toxic-input" class="toxic-input" placeholder="add toxic keyword...">
+      <button class="btn btn-red" id="toxic-add">+</button>
+    </div>
+  </div>
+
+  <div class="status" id="status"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
