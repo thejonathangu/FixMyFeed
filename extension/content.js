@@ -1,3 +1,14 @@
+function scrollToNext(container) {
+  var all = document.querySelectorAll('[data-e2e="recommend-list-item-container"]');
+  for (var i = 0; i < all.length; i++) {
+    if (all[i] === container && i + 1 < all.length) {
+      all[i + 1].scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+  }
+  container.parentElement.scrollBy({ top: container.offsetHeight, behavior: "smooth" });
+}
+
 const observer = new IntersectionObserver((entries) => {
   entries.forEach((entry) => {
     if (!entry.isIntersecting) return;
@@ -36,7 +47,7 @@ const observer = new IntersectionObserver((entries) => {
 
         setTimeout(() => {
           if (action === "SKIP") {
-            window.scrollBy({ top: window.innerHeight, behavior: "smooth" });
+            scrollToNext(container);
             dashboard.remove();
           } else if (action === "LIKE_AND_STAY") {
             const likeIcon = container.querySelector('[data-e2e="like-icon"]');
@@ -44,7 +55,7 @@ const observer = new IntersectionObserver((entries) => {
               likeIcon.click();
             }
             setTimeout(() => {
-              window.scrollBy({ top: window.innerHeight, behavior: "smooth" });
+              scrollToNext(container);
               dashboard.remove();
             }, delayMs);
           }
