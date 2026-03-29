@@ -1,5 +1,7 @@
 const isIg = window.location.hostname.includes("instagram.com");
 const isTikTok = window.location.hostname.includes("tiktok.com");
+const CREDIT_REFRESH_MS = 30000;
+var latestCreditStatus = null;
 
 
 // ---------------------------------------------------------------------------
@@ -15,12 +17,67 @@ function logCurrentWatch() {
       action_type: currentWatch.action,
       duration_ms: duration,
       text_content: currentWatch.textContent
-    });
+    }, function() { if (chrome.runtime.lastError) {} });
     if (currentWatch.dashboard && currentWatch.dashboard.parentNode) {
       currentWatch.dashboard.remove();
     }
     currentWatch = null;
   }
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function applyCreditFilter(creditStatus) {
+  if (!creditStatus || !creditStatus.max_credits) return;
+  const ratio = clamp(creditStatus.remaining_credits / creditStatus.max_credits, 0, 1);
+  const grayscalePercent = Math.round((1 - ratio) * 100);
+  document.documentElement.style.filter = "grayscale(" + grayscalePercent + "%)";
+}
+
+function formatCreditLine(creditStatus) {
+  if (!creditStatus) return "🎨 Color credits: --/30 (1h)";
+  return "🎨 Color credits: " + creditStatus.remaining_credits + "/" + creditStatus.max_credits + " (1h)";
+}
+
+function updateDashboardCredits(dashboard, creditStatus) {
+  if (!dashboard || !dashboard.parentNode) return;
+  const baseLabel = dashboard.getAttribute("data-base-label") || "";
+  dashboard.setAttribute("data-base-label", baseLabel.split("\n🎨 Color credits:")[0] + "\n" + formatCreditLine(creditStatus));
+  dashboard.textContent = dashboard.getAttribute("data-base-label");
+}
+
+function getColorCreditStatus() {
+  return new Promise(function(resolve) {
+    chrome.runtime.sendMessage({ action: "get_color_credit_status" }, function(response) {
+      if (chrome.runtime.lastError) {
+        resolve(null);
+        return;
+      }
+      if (!response || !response.success) {
+        resolve(null);
+        return;
+      }
+      resolve(response.data);
+    });
+  });
+}
+
+function consumeColorCredit(videoData) {
+  return new Promise(function(resolve) {
+    chrome.runtime.sendMessage({ action: "consume_color_credit", data: videoData || {} }, function(response) {
+      if (chrome.runtime.lastError) {
+        resolve(null);
+        return;
+      }
+      if (!response || !response.success) {
+        resolve(null);
+        return;
+      }
+      resolve(response.data);
+    });
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -145,6 +202,26 @@ function scrollToNext(container) {
   }
 }
 
+function findPrimaryVideo(container) {
+  if (!container) return null;
+  if (container.tagName === "VIDEO") return container;
+  var v = container.querySelector("video");
+  return v || null;
+}
+
+function muteVideoInContainer(container) {
+  var v = findPrimaryVideo(container);
+  if (v) v.muted = true;
+}
+
+function enableSoundInContainer(container) {
+  var v = findPrimaryVideo(container);
+  if (!v) return;
+  v.muted = false;
+  v.volume = 1;
+  v.play().catch(function() {});
+}
+
 function cleanText(value) {
   if (!value) return "";
   return value.replace(/\s+/g, " ").trim();
@@ -237,6 +314,8 @@ const observer = new IntersectionObserver((entries) => {
     if (container.getAttribute("data-scanned") === "true") return;
     container.setAttribute("data-scanned", "true");
 
+    muteVideoInContainer(container);
+
     // Log previous video's watch time before starting new one
     logCurrentWatch();
 
@@ -280,18 +359,27 @@ const observer = new IntersectionObserver((entries) => {
     } else {
       textContent = container.innerText || "";
     }
-    // Send TikTok video metadata to background for Supabase logging.
+    const videoData = isIg
+      ? {
+          creator: "instagram",
+          caption: textContent.slice(0, 500),
+          hashtags: extractHashtags(textContent),
+          platform: "instagram"
+        }
+      : Object.assign(scrapeVideoData(container), { platform: "tiktok" });
+
+    // Keep candidate logging without consuming color credits.
     if (!isIg) {
-      const videoData = scrapeVideoData(container);
       chrome.runtime.sendMessage({
         action: "log_video",
         data: {
-          action_type: "watched",
+          action_type: "candidate",
           caption: videoData.caption,
           hashtags: videoData.hashtags,
-          creator: videoData.creator
+          creator: videoData.creator,
+          platform: videoData.platform
         }
-      });
+      }, function() { if (chrome.runtime.lastError) {} });
     }
     var loadingOverlay = createLoadingOverlay();
     
@@ -311,8 +399,13 @@ const observer = new IntersectionObserver((entries) => {
         const delayMs = response.data.delay_ms;
 
         if (action === "SKIP") {
-          // Clear any previous watch since this one is skipped
           currentWatch = null;
+          getColorCreditStatus().then(function(status) {
+            if (status) {
+              latestCreditStatus = status;
+              applyCreditFilter(status);
+            }
+          });
           scrollToNext(container);
           setTimeout(() => {
             if (loadingOverlay && loadingOverlay.parentNode) loadingOverlay.remove();
@@ -320,7 +413,36 @@ const observer = new IntersectionObserver((entries) => {
           return;
         }
 
+        if (action === "WAIT") {
+          muteVideoInContainer(container);
+          getColorCreditStatus().then(function(status) {
+            if (status) {
+              latestCreditStatus = status;
+              applyCreditFilter(status);
+            }
+          });
+          setTimeout(() => {
+            var durationMs = Date.now() - videoStartTime;
+            chrome.runtime.sendMessage({
+              type: "log_watch",
+              action_type: action,
+              duration_ms: durationMs,
+              text_content: textContent
+            }, function() { if (chrome.runtime.lastError) {} });
+            if (loadingOverlay && loadingOverlay.parentNode) loadingOverlay.remove();
+            scrollToNext(container);
+          }, delayMs);
+          return;
+        }
+
+        if (action !== "LIKE_AND_STAY") {
+          if (loadingOverlay && loadingOverlay.parentNode) loadingOverlay.remove();
+          return;
+        }
+
         if (loadingOverlay && loadingOverlay.parentNode) loadingOverlay.remove();
+
+        enableSoundInContainer(container);
 
         const dashboard = document.createElement("div");
         dashboard.style.position = "fixed";
@@ -339,17 +461,15 @@ const observer = new IntersectionObserver((entries) => {
 
         var label = "ACTION: " + action + " | SCORE: " + score;
         if (response.data.reason) label += "\n" + response.data.reason;
+        label += "\n" + formatCreditLine(latestCreditStatus);
         dashboard.setAttribute("data-base-label", label);
         dashboard.textContent = label;
         document.body.appendChild(dashboard);
 
-        // Start tracking this video
-        // If there's already a video being watched, log it first
         if (currentWatch) {
           logCurrentWatch();
         }
-        
-        // Start tracking this video
+
         currentWatch = {
           action: action,
           startTime: videoStartTime,
@@ -357,7 +477,34 @@ const observer = new IntersectionObserver((entries) => {
           dashboard: dashboard
         };
 
-        if (action === "LIKE_AND_STAY") {
+        chrome.runtime.sendMessage({
+          action: "log_video",
+          data: {
+            action_type: action,
+            caption: videoData.caption,
+            hashtags: videoData.hashtags,
+            creator: videoData.creator,
+            platform: videoData.platform,
+            category_vector: response.data.category_vector || []
+          }
+        }, function() {
+          if (chrome.runtime.lastError) {
+            console.log("[Shadow-Scroll] log_video:", chrome.runtime.lastError.message);
+          }
+        });
+
+        consumeColorCredit({
+          caption: videoData.caption,
+          hashtags: videoData.hashtags,
+          creator: videoData.creator,
+          platform: videoData.platform
+        }).then(function(status) {
+          if (status) {
+            latestCreditStatus = status;
+            applyCreditFilter(status);
+            updateDashboardCredits(dashboard, status);
+          }
+
           if (response.data.autolike) {
             if (isIg) {
               let wrapper = container;
@@ -376,26 +523,19 @@ const observer = new IntersectionObserver((entries) => {
               }
             }
           }
-          // Lock scroll for 5 seconds, then unlock - user controls when they leave
+
           lockScroll(5, dashboard);
           setTimeout(() => {
             unlockScroll();
-            // Update dashboard to show unlocked
             if (dashboard && dashboard.parentNode) {
               dashboard.textContent = dashboard.getAttribute("data-base-label") + "\n✓ Scroll unlocked - watching...";
             }
           }, 5000);
-        } else if (action === "WAIT") {
-          // Auto-scroll after delay, log duration when that happens
-          setTimeout(() => {
-            logCurrentWatch();
-            scrollToNext(container);
-          }, delayMs);
-        }
+        });
       }
     );
   });
-}, { threshold: 0.6 });
+}, { threshold: isIg ? 0.1 : 0.6 });
 
 // ---------------------------------------------------------------------------
 // Poll for new video containers every second — platform aware
@@ -426,3 +566,17 @@ setInterval(() => {
   }
 }, 1000);
 
+function refreshCreditStatusAndFilter() {
+  getColorCreditStatus().then(function(status) {
+    if (!status) return;
+    latestCreditStatus = status;
+    applyCreditFilter(status);
+  });
+}
+
+refreshCreditStatusAndFilter();
+setInterval(refreshCreditStatusAndFilter, CREDIT_REFRESH_MS);
+
+if (isIg) {
+  console.log("[Shadow-Scroll] Instagram mode active - watching for reels...");
+}
