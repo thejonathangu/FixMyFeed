@@ -2,6 +2,7 @@ const API = "http://127.0.0.1:8000";
 const SUPABASE_URL = "https://musjoqntygjpxxlmibqr.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im11c2pvcW50eWdqcHh4bG1pYnFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3MjUyMDMsImV4cCI6MjA5MDMwMTIwM30.lLH7EUCoNivsDeDXBYfzWkLWOBlw3ivj8Plrad__GTM";
 const USER_ID_KEY = "user_id";
+const COLOR_CREDIT_LIMIT_PER_HOUR = 30;
 
 function generateUserId() {
   return "user_" + Math.random().toString(36).slice(2, 12);
@@ -46,8 +47,6 @@ async function saveVideoEvent(videoData) {
 }
 
 // ── Parental settings sync ────────────────────────────────────────────────────
-// Pulls parental_settings from Supabase and merges into chrome.storage.local
-// so the evaluate flow automatically uses parent-controlled keywords.
 
 async function syncParentalSettings() {
   try {
@@ -66,8 +65,6 @@ async function syncParentalSettings() {
     if (!rows || rows.length === 0) return;
     const row = rows[0];
 
-    // Always sync keywords from Supabase if a row exists.
-    // parental_locked flag controls whether the popup can override them.
     await chrome.storage.local.set({
       interests: row.interests || [],
       toxic: row.toxic_keywords || [],
@@ -77,6 +74,61 @@ async function syncParentalSettings() {
   } catch (e) {
     console.warn("[FixMyFeed] Parental sync failed:", e);
   }
+}
+
+// ── Color credit system ───────────────────────────────────────────────────────
+
+function parseSupabaseCount(response) {
+  const rangeHeader = response.headers.get("content-range") || "";
+  const parts = rangeHeader.split("/");
+  if (parts.length < 2) return 0;
+  const total = parseInt(parts[1], 10);
+  return Number.isFinite(total) ? total : 0;
+}
+
+async function getWatchedCountLastHour(userId) {
+  const oneHourAgoIso = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const params = new URLSearchParams();
+  params.set("select", "id");
+  params.set("user_id", `eq.${userId}`);
+  params.set("action_type", "eq.watched");
+  params.set("created_at", `gte.${oneHourAgoIso}`);
+  params.set("limit", "1");
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/video_events?${params.toString()}`, {
+    method: "GET",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      Prefer: "count=exact"
+    }
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Supabase credit count failed (${response.status}): ${errorText}`);
+  }
+
+  return parseSupabaseCount(response);
+}
+
+async function getColorCreditStatus() {
+  const userId = await getOrCreateUserId();
+  const watchedLastHour = await getWatchedCountLastHour(userId);
+  const remaining = Math.max(0, COLOR_CREDIT_LIMIT_PER_HOUR - watchedLastHour);
+  return {
+    user_id: userId,
+    watched_last_hour: watchedLastHour,
+    max_credits: COLOR_CREDIT_LIMIT_PER_HOUR,
+    remaining_credits: remaining
+  };
+}
+
+async function consumeColorCredit(videoData) {
+  await saveVideoEvent({
+    ...videoData,
+    action_type: "watched"
+  });
+  return getColorCreditStatus();
 }
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -98,6 +150,20 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === "get_color_credit_status") {
+    getColorCreditStatus()
+      .then((status) => sendResponse({ success: true, data: status }))
+      .catch((err) => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
+
+  if (message.action === "consume_color_credit") {
+    consumeColorCredit(message.data || {})
+      .then((status) => sendResponse({ success: true, data: status }))
+      .catch((err) => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
+
   if (message.action === "log_video") {
     saveVideoEvent(message.data || {})
       .then(() => sendResponse({ success: true }))
