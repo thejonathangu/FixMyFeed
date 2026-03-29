@@ -134,7 +134,7 @@ function extractThemesFromEvents(events: EventRecord[]): Map<string, ThemeData> 
 function buildNodesAtTime(
   themes: Map<string, ThemeData>,
   timeProgress: number,
-  totalEvents: number,
+  _totalEvents: number,
 ): NodeData[] {
   const nodes: NodeData[] = [];
   
@@ -252,11 +252,6 @@ function generateSnapshotsFromEvents(events: EventRecord[]): Snapshot[] {
   
   const timelinePoints = [0, 0.15, 0.3, 0.5, 0.7, 0.85, 1.0];
   const labels = ['Start', 'Early', 'Building', 'Midpoint', 'Progress', 'Late', 'Current'];
-  
-  let cumulativeSkipped = 0;
-  let cumulativeLiked = 0;
-  let cumulativePositiveMs = 0;
-  let cumulativeTotalMs = 0;
   
   return timelinePoints.map((t, idx) => {
     const eventCutoff = Math.floor(t * events.length);

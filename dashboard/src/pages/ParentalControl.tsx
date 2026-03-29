@@ -49,7 +49,7 @@ function Tag({
 
 function TagInput({
   placeholder,
-  color,
+  color: _color,
   onAdd,
   disabled,
 }: {
