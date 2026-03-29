@@ -38,6 +38,25 @@ class EvaluateRequest(BaseModel):
     user_id: str = "anonymous"
 
 
+def finalize_category_vector(action: str, raw: List[str], interests: List[str]) -> List[str]:
+    cleaned: List[str] = []
+    for c in raw[:3]:
+        if c is None:
+            continue
+        s = str(c).strip()[:30]
+        if s:
+            cleaned.append(s)
+    if cleaned:
+        return cleaned
+    if action == "SKIP":
+        return ["skipped", "rejected"]
+    if action == "WAIT":
+        return ["uncategorized", "neutral"]
+    if interests:
+        return [str(interests[0]).strip()[:30] or "aligned", "interest_match"][:3]
+    return ["aligned", "interest_match"]
+
+
 def parse_tiktok_text(text):
     lines = text.strip().split("\n")
     creator = lines[0].strip() if lines else ""
@@ -68,9 +87,11 @@ RULES:
 - Use WAIT for anything neutral or unclear.
 - Entertainment, humor, creative content related to interests = LIKE_AND_STAY
 - Score 5+ means interesting. Score -5 or below means toxic.
+- category_vector: ALWAYS 1-3 short labels for every action, including SKIP (e.g. ["brainrot", "off_topic"] but if it is good, something like ["cooking", "tutorial", "vegan"]).
+- BRAINROT DETECTION: Content featuring pseudoscience conspiracies (piezoelectric floors, free energy, etc.), rage bait, meaningless viral trends, or low-effort engagement farming should be categorized with "brainrot" in category_vector and marked as SKIP if "brainrot" is in AVOID list.
 
 Respond with ONLY valid JSON:
-{"action": "SKIP" or "LIKE_AND_STAY" or "WAIT", "score": -20 to 20, "reason": "brief explanation"}"""
+{"action": "SKIP" or "LIKE_AND_STAY" or "WAIT", "score": -20 to 20, "reason": "brief explanation", "category_vector": ["category1", "category2", "category3"]}"""
 
     print("=" * 60)
     print(f"INTERESTS: {payload.interests}")
@@ -96,7 +117,7 @@ Respond with ONLY valid JSON:
                     {"role": "user", "content": "Evaluate:\n\n" + payload.text_content[:1500]},
                 ],
                 "temperature": 0.3,
-                "max_tokens": 100,
+                "max_tokens": 200,
             },
             timeout=10,
         )
@@ -121,7 +142,13 @@ Respond with ONLY valid JSON:
 
         reason = str(result.get("reason", ""))[:100]
 
-        print(f"DECISION: {action} | score={score} | {reason}")
+        raw_vector = result.get("category_vector", [])
+        if not isinstance(raw_vector, list):
+            raw_vector = []
+        category_vector = [str(c).strip()[:30] for c in raw_vector[:3] if str(c).strip()]
+        category_vector = finalize_category_vector(action, category_vector, payload.interests)
+
+        print(f"DECISION: {action} | score={score} | {reason} | categories={category_vector}")
 
     except Exception as e:
         import traceback
@@ -130,6 +157,7 @@ Respond with ONLY valid JSON:
         action = "WAIT"
         score = 0
         reason = "API Error - watching anyway"
+        category_vector = finalize_category_vector("WAIT", [], payload.interests)
 
     if action == "SKIP":
         delay_ms = 1500
@@ -151,6 +179,7 @@ Respond with ONLY valid JSON:
                     "caption": caption,
                     "hashtags": hashtags,
                     "creator": creator,
+                    "category_vector": category_vector,
                 }).execute()
                 print(f"Logged to Supabase: {action} | {creator} | 0ms")
             except Exception as e:
@@ -162,6 +191,7 @@ Respond with ONLY valid JSON:
         "reason": reason,
         "delay_ms": delay_ms,
         "compute_time_ms": compute_time_ms,
+        "category_vector": category_vector,
     }
 
 
