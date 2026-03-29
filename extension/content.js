@@ -314,9 +314,21 @@ function scrapeVideoData(container) {
   };
 }
 // ---------------------------------------------------------------------------
-// Loading overlay (from upstream)
+// Loading overlay — single full-screen layer until a reel is passable (LIKE_AND_STAY)
 // ---------------------------------------------------------------------------
-function createLoadingOverlay() {
+var evalBlockingOverlay = null;
+
+function removeEvalBlockingOverlay() {
+  if (evalBlockingOverlay && evalBlockingOverlay.parentNode) {
+    evalBlockingOverlay.remove();
+  }
+  evalBlockingOverlay = null;
+}
+
+function ensureEvalBlockingOverlay() {
+  if (evalBlockingOverlay && evalBlockingOverlay.parentNode) {
+    return evalBlockingOverlay;
+  }
   ensureFixMyFeedUiFont();
   var overlay = document.createElement("div");
   overlay.style.cssText =
@@ -340,7 +352,7 @@ function createLoadingOverlay() {
   overlay.appendChild(spinner);
   overlay.appendChild(text);
   document.body.appendChild(overlay);
-
+  evalBlockingOverlay = overlay;
   return overlay;
 }
 
@@ -423,7 +435,7 @@ const observer = new IntersectionObserver((entries) => {
         }
       }, function() { if (chrome.runtime.lastError) {} });
     }
-    var loadingOverlay = createLoadingOverlay();
+    ensureEvalBlockingOverlay();
     
     // Track start time BEFORE API call
     var videoStartTime = Date.now();
@@ -432,7 +444,7 @@ const observer = new IntersectionObserver((entries) => {
       { type: "evaluate", text: textContent },
       (response) => {
         if (!response || !response.success) {
-          if (loadingOverlay && loadingOverlay.parentNode) loadingOverlay.remove();
+          removeEvalBlockingOverlay();
           return;
         }
 
@@ -449,9 +461,6 @@ const observer = new IntersectionObserver((entries) => {
             }
           });
           scrollToNext(container);
-          setTimeout(() => {
-            if (loadingOverlay && loadingOverlay.parentNode) loadingOverlay.remove();
-          }, 500);
           return;
         }
 
@@ -478,18 +487,17 @@ const observer = new IntersectionObserver((entries) => {
                 duration_ms: durationMs
               }
             }, function() { if (chrome.runtime.lastError) {} });
-            if (loadingOverlay && loadingOverlay.parentNode) loadingOverlay.remove();
             scrollToNext(container);
           }, delayMs);
           return;
         }
 
         if (action !== "LIKE_AND_STAY") {
-          if (loadingOverlay && loadingOverlay.parentNode) loadingOverlay.remove();
+          removeEvalBlockingOverlay();
           return;
         }
 
-        if (loadingOverlay && loadingOverlay.parentNode) loadingOverlay.remove();
+        removeEvalBlockingOverlay();
 
         ensureFixMyFeedUiFont();
         enableSoundInContainer(container);
@@ -639,4 +647,5 @@ setInterval(refreshCreditStatusAndFilter, CREDIT_REFRESH_MS);
 if (isIg) {
   console.log("[Shadow-Scroll] Instagram mode active - watching for reels...");
 }
+
 
