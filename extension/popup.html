@@ -160,6 +160,27 @@
     .toggle input:checked + .toggle-slider:before {
       transform: translateX(18px);
     }
+    .color-credits-hint {
+      display: none;
+      margin: 0 0 14px;
+      padding: 10px 12px;
+      background: #f0f0f0;
+      border: 1px solid #e5e5e5;
+      border-radius: 8px;
+      font-size: 11px;
+      line-height: 1.5;
+      color: #525252;
+      text-align: left;
+    }
+    .color-credits-hint strong {
+      display: block;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #737373;
+      margin-bottom: 6px;
+    }
   </style>
 </head>
 <body>
@@ -209,6 +230,12 @@
   <div class="status" id="status"></div>
 
   <hr class="divider">
+
+  <div id="color-credits-hint" class="color-credits-hint" role="status">
+    <strong>Grayscale feed</strong>
+    Wondering why everything's black and white? You've used all your color credits, and it takes 1 hour to reset. Fall in love with the colors of the REAL world! 
+    <br> - The FixMyFeed Team
+  </div>
 
   <div style="text-align:center;padding:4px 0 2px;">
     <span style="font-size:10px;color:#333;letter-spacing:1px;text-transform:uppercase;">User ID</span><br>

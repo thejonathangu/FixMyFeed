@@ -91,7 +91,8 @@ async function getWatchedCountLastHour(userId) {
   const params = new URLSearchParams();
   params.set("select", "id");
   params.set("user_id", `eq.${userId}`);
-  params.set("action_type", "eq.watched");
+  // log_watch sends gatekeeper actions; consume credits for both stay-like actions.
+  params.set("action_type", "in.(watched,LIKE_AND_STAY,WAIT)");
   params.set("created_at", `gte.${oneHourAgoIso}`);
   params.set("limit", "1");
   const response = await fetch(`${SUPABASE_URL}/rest/v1/video_events?${params.toString()}`, {

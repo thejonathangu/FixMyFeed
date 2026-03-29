@@ -120,3 +120,24 @@ chrome.storage.local.get(["user_id"], function(data) {
     if (el) el.textContent = data.user_id;
   }
 });
+
+(function refreshColorCreditsHint() {
+  var hint = document.getElementById("color-credits-hint");
+  if (!hint) return;
+  chrome.runtime.sendMessage({ action: "get_color_credit_status" }, function(response) {
+    if (chrome.runtime.lastError) {
+      hint.style.display = "none";
+      return;
+    }
+    var out =
+      response &&
+      response.success &&
+      response.data &&
+      typeof response.data.remaining_credits === "number";
+    if (out && response.data.remaining_credits === 0) {
+      hint.style.display = "block";
+    } else {
+      hint.style.display = "none";
+    }
+  });
+})();

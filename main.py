@@ -14,6 +14,33 @@ deep_analysis_cache = {}
 cache_lock = threading.Lock()
 
 load_dotenv()
+
+
+def schedule_deep_analysis_backfill(row_id: str, content_hash: str) -> None:
+    """When Agent 2 finishes after the row is inserted, patch deep_analysis (SKIP + log_watch)."""
+    if not supabase or not row_id or not content_hash:
+        return
+
+    def run():
+        for _ in range(40):  # up to 20s (aligns with slow Lava / analyzer calls)
+            time.sleep(0.5)
+            with cache_lock:
+                if content_hash in deep_analysis_cache:
+                    cached = deep_analysis_cache.pop(content_hash)
+                    analysis = cached["analysis"]
+                    try:
+                        supabase.table("video_events").update({
+                            "deep_analysis": analysis,
+                            "category_vector": analysis.get("themes", [])[:3],
+                        }).eq("id", row_id).execute()
+                        print(f"[SUPABASE] Backfilled deep_analysis for row {row_id}")
+                    except Exception as e:
+                        print(f"[SUPABASE] Backfill update error: {e}")
+                    return
+        print(f"[SUPABASE] deep_analysis backfill timed out for row {row_id}")
+
+    threading.Thread(target=run, daemon=True).start()
+
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
@@ -111,12 +138,12 @@ USER INTERESTS: {", ".join(interests)}
 AVOID: {", ".join(toxic_keywords)}
 
 RULES:
-- LIKE_AND_STAY: Content related to interests (be generous with matches)
-- SKIP: Content matching AVOID topics or complete garbage/brainrot
-- WAIT: Neutral content, unclear
+- LIKE_AND_STAY: Reserve for content that is highly likely to align with USER INTERESTS (clear, direct, high-confidence match).
+- WAIT: Use for loose/partial matches and for content that seems positive, educational, creative, or generally fine but not strongly aligned. Prefer WAIT over LIKE_AND_STAY unless alignment is obvious.
+- SKIP: Use when content clearly matches AVOID keywords, is obvious spam/copypasta/brainrot/malicious, or is strongly misaligned with interests.
 
 Respond with ONLY valid JSON:
-{{"action": "SKIP"|"LIKE_AND_STAY"|"WAIT", "score": -20 to 20, "reason": "5 words max", "categories": ["cat1", "cat2"]}}"""
+{{"action": "SKIP"|"LIKE_AND_STAY"|"WAIT", "reason": "5 words max", "categories": ["cat1", "cat2"]}}"""
 
     try:
         response = call_lava_api(
@@ -146,14 +173,13 @@ Respond with ONLY valid JSON:
             
         return {
             "action": action,
-            "score": max(-20, min(20, int(result.get("score", 0)))),
             "reason": str(result.get("reason", ""))[:50],
             "categories": result.get("categories", [])[:3]
         }
         
     except Exception as e:
         print(f"[GATEKEEPER] Error: {e}")
-        return {"action": "WAIT", "score": 0, "reason": "gatekeeper error", "categories": []}
+        return {"action": "WAIT", "reason": "gatekeeper error", "categories": []}
 
 
 # =============================================================================
@@ -329,10 +355,9 @@ def evaluate(payload: EvaluateRequest):
     )
     
     action = gatekeeper_result["action"]
-    score = gatekeeper_result["score"]
     reason = gatekeeper_result["reason"]
     category_vector = gatekeeper_result["categories"]
-    
+
     # AGENT 2: Deep analysis runs in BACKGROUND for ALL content
     # Results are cached and included when /log_watch is called
     content_hash = hashlib.md5(payload.text_content[:500].encode()).hexdigest()
@@ -363,7 +388,7 @@ def evaluate(payload: EvaluateRequest):
     
     # Set delays based on action
     if action == "SKIP":
-        delay_ms = 500
+        delay_ms = 1100
     elif action == "LIKE_AND_STAY":
         delay_ms = 25000
     else:
@@ -389,41 +414,16 @@ def evaluate(payload: EvaluateRequest):
             if result.data and len(result.data) > 0:
                 row_id = result.data[0].get("id")
                 if row_id:
-                    def update_skip_with_analysis(row_id, content_hash):
-                        # Wait for deep analysis to complete (max 10 seconds)
-                        for _ in range(20):
-                            time.sleep(0.5)
-                            with cache_lock:
-                                if content_hash in deep_analysis_cache:
-                                    cached = deep_analysis_cache.pop(content_hash)
-                                    analysis = cached["analysis"]
-                                    try:
-                                        supabase.table("video_events").update({
-                                            "deep_analysis": analysis,
-                                            "category_vector": analysis.get("themes", [])[:3],
-                                        }).eq("id", row_id).execute()
-                                        print(f"[SUPABASE] Updated SKIP row {row_id} with deep analysis")
-                                    except Exception as e:
-                                        print(f"[SUPABASE] Update error: {e}")
-                                    return
-                        print(f"[SUPABASE] Deep analysis not ready for SKIP row {row_id}")
-                    
-                    update_thread = threading.Thread(
-                        target=update_skip_with_analysis,
-                        args=(row_id, content_hash),
-                        daemon=True
-                    )
-                    update_thread.start()
+                    schedule_deep_analysis_backfill(row_id, content_hash)
             
             print(f"[SUPABASE] Logged SKIP event")
         except Exception as e:
             print(f"[SUPABASE] Error: {e}")
     
-    print(f"[ORCHESTRATOR] Decision: {action} | Score: {score} | Time: {compute_time_ms:.0f}ms")
+    print(f"[ORCHESTRATOR] Decision: {action} | Time: {compute_time_ms:.0f}ms")
     
     return {
         "action": action,
-        "score": score,
         "reason": reason,
         "delay_ms": delay_ms,
         "compute_time_ms": compute_time_ms,
@@ -438,18 +438,18 @@ def log_watch(payload: LogWatchRequest):
         try:
             creator, hashtags, caption = parse_tiktok_text(payload.text_content)
             
-            # Check cache for deep analysis - wait up to 5 seconds if not ready yet
+            # Same hash as /evaluate — Agent 2 runs async; wait as long as SKIP backfill (10s)
             content_hash = hashlib.md5(payload.text_content[:500].encode()).hexdigest()
             cached_analysis = None
-            
-            for attempt in range(10):  # Wait up to 5 seconds (10 x 0.5s)
+
+            for attempt in range(20):
                 with cache_lock:
                     if content_hash in deep_analysis_cache:
                         cached_analysis = deep_analysis_cache.pop(content_hash)
                         break
-                if attempt < 9:  # Don't sleep on last attempt
+                if attempt < 19:
                     time.sleep(0.5)
-            
+
             insert_data = {
                 "user_id": payload.user_id,
                 "action_type": payload.action_type,
@@ -458,19 +458,28 @@ def log_watch(payload: LogWatchRequest):
                 "hashtags": hashtags,
                 "creator": creator,
             }
-            
-            # Use cached deep analysis if available
+
             if cached_analysis:
                 analysis = cached_analysis["analysis"]
                 insert_data["deep_analysis"] = analysis
                 insert_data["category_vector"] = analysis.get("themes", [])[:3]
                 print(f"[SUPABASE] Including cached deep analysis: {analysis.get('themes', [])[:3]}")
-            else:
-                print(f"[SUPABASE] No deep analysis found after waiting")
+            elif payload.deep_analysis:
+                insert_data["deep_analysis"] = payload.deep_analysis
                 if payload.category_vector:
                     insert_data["category_vector"] = payload.category_vector
-            
-            supabase.table("video_events").insert(insert_data).execute()
+                print(f"[SUPABASE] Using client-provided deep_analysis")
+            else:
+                print(f"[SUPABASE] No deep analysis in cache yet — inserting row and backfilling")
+                if payload.category_vector:
+                    insert_data["category_vector"] = payload.category_vector
+
+            result = supabase.table("video_events").insert(insert_data).execute()
+            if result.data and len(result.data) > 0:
+                row_id = result.data[0].get("id")
+                if row_id and insert_data.get("deep_analysis") is None:
+                    schedule_deep_analysis_backfill(row_id, content_hash)
+
             print(f"[SUPABASE] Logged {payload.action_type} | {creator} | {payload.duration_ms}ms")
             return {"success": True}
         except Exception as e:

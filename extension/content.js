@@ -1,6 +1,13 @@
 const isIg = window.location.hostname.includes("instagram.com");
 const isTikTok = window.location.hostname.includes("tiktok.com");
 const CREDIT_REFRESH_MS = 30000;
+
+/** Instagram: only the /reels tab — not feed, explore, profiles, DMs, etc. */
+function isInstagramReelsUrl() {
+  if (!isIg) return false;
+  var p = window.location.pathname || "";
+  return p === "/reels" || p.startsWith("/reels/");
+}
 var latestCreditStatus = null;
 var FIXMYFEED_FONT =
   '"DM Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
@@ -76,38 +83,50 @@ function updateDashboardCredits(dashboard, creditStatus) {
   dashboard.textContent = dashboard.getAttribute("data-base-label");
 }
 
-function getColorCreditStatus() {
+/**
+ * Runtime messaging can fail on first page load while MV3 service worker wakes.
+ * Retry briefly so direct landings on /reels are resilient.
+ */
+function sendRuntimeMessageWithRetry(message, options) {
+  options = options || {};
+  var attemptsLeft = typeof options.attempts === "number" ? options.attempts : 4;
+  var retryDelayMs = typeof options.retryDelayMs === "number" ? options.retryDelayMs : 220;
+  var label = options.label || "runtime message";
+
   return new Promise(function(resolve) {
-    chrome.runtime.sendMessage({ action: "get_color_credit_status" }, function(response) {
-      if (chrome.runtime.lastError) {
-        console.log("[Shadow-Scroll] Color credits:", chrome.runtime.lastError.message);
+    function attempt() {
+      chrome.runtime.sendMessage(message, function(response) {
+        if (!chrome.runtime.lastError && response && response.success) {
+          resolve(response.data);
+          return;
+        }
+        attemptsLeft--;
+        if (attemptsLeft > 0) {
+          setTimeout(attempt, retryDelayMs);
+          return;
+        }
+        if (chrome.runtime.lastError) {
+          console.log("[Shadow-Scroll] " + label + ":", chrome.runtime.lastError.message);
+        }
         resolve(null);
-        return;
-      }
-      if (!response || !response.success) {
-        resolve(null);
-        return;
-      }
-      resolve(response.data);
-    });
+      });
+    }
+    attempt();
   });
 }
 
+function getColorCreditStatus() {
+  return sendRuntimeMessageWithRetry(
+    { action: "get_color_credit_status" },
+    { label: "Color credits", attempts: 5, retryDelayMs: 260 }
+  );
+}
+
 function consumeColorCredit(videoData) {
-  return new Promise(function(resolve) {
-    chrome.runtime.sendMessage({ action: "consume_color_credit", data: videoData || {} }, function(response) {
-      if (chrome.runtime.lastError) {
-        console.log("[Shadow-Scroll] consumeColorCredit:", chrome.runtime.lastError.message);
-        resolve(null);
-        return;
-      }
-      if (!response || !response.success) {
-        resolve(null);
-        return;
-      }
-      resolve(response.data);
-    });
-  });
+  return sendRuntimeMessageWithRetry(
+    { action: "consume_color_credit", data: videoData || {} },
+    { label: "consumeColorCredit", attempts: 5, retryDelayMs: 260 }
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -183,6 +202,10 @@ window.addEventListener("keydown", preventKeyScroll, { capture: true });
 // ---------------------------------------------------------------------------
 // Scroll to next — platform aware (Instagram vs TikTok)
 // ---------------------------------------------------------------------------
+/** Minimum time between automated scrolls so the feed / DOM can catch up */
+var lastAutoScrollAt = 0;
+var MIN_AUTO_SCROLL_GAP_MS = 920;
+
 function scrollToNext(container) {
   if (scrollLocked) return;
 
@@ -208,6 +231,7 @@ function scrollToNext(container) {
     
     // Try keyboard navigation (Instagram supports arrow keys)
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', keyCode: 40, bubbles: true }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageDown', keyCode: 34, bubbles: true }));
     
     // Fallback: scroll to the next video element
     var all = Array.from(document.querySelectorAll('video'));
@@ -231,6 +255,24 @@ function scrollToNext(container) {
       window.scrollBy({ top: window.innerHeight, behavior: "smooth" });
     }
   }
+}
+
+/** SKIP bursts often need the Next control to paint; retries + minimum gap reduce stuck overlay */
+function scrollToNextReliable(container) {
+  if (scrollLocked) return;
+  var wait = Math.max(0, MIN_AUTO_SCROLL_GAP_MS - (Date.now() - lastAutoScrollAt));
+  function burst() {
+    lastAutoScrollAt = Date.now();
+    scrollToNext(container);
+    setTimeout(function () {
+      scrollToNext(container);
+    }, 520);
+    setTimeout(function () {
+      scrollToNext(container);
+    }, 1180);
+  }
+  if (wait > 0) setTimeout(burst, wait);
+  else burst();
 }
 
 function findPrimaryVideo(container) {
@@ -309,11 +351,130 @@ function scrapeVideoData(container) {
   };
 }
 // ---------------------------------------------------------------------------
-// Loading overlay — single full-screen layer until a reel is passable (LIKE_AND_STAY)
+// Loading overlay — full-screen until LIKE_AND_STAY; right column shows quotes
 // ---------------------------------------------------------------------------
 var evalBlockingOverlay = null;
+var quotesListPromise = null;
+var blockerQuoteTickId = null;
+var BLOCKER_QUOTE_VISIBLE_MS = 10000;
+
+function parseQuotesCsv(text) {
+  var out = [];
+  var lines = text.split(/\r?\n/);
+  for (var li = 1; li < lines.length; li++) {
+    var line = lines[li];
+    if (!line || !line.trim()) continue;
+    var comma = line.indexOf(",");
+    if (comma < 0) continue;
+    var rest = line.slice(comma + 1);
+    if (rest.charAt(0) !== '"') continue;
+    var q = "";
+    var i = 1;
+    while (i < rest.length) {
+      if (rest.charAt(i) === '"' && rest.charAt(i + 1) === '"') {
+        q += '"';
+        i += 2;
+        continue;
+      }
+      if (rest.charAt(i) === '"') {
+        i++;
+        break;
+      }
+      q += rest.charAt(i);
+      i++;
+    }
+    if (i >= rest.length || rest.charAt(i) !== ",") continue;
+    i++;
+    if (rest.charAt(i) !== '"') continue;
+    i++;
+    var author = "";
+    while (i < rest.length) {
+      if (rest.charAt(i) === '"' && rest.charAt(i + 1) === '"') {
+        author += '"';
+        i += 2;
+        continue;
+      }
+      if (rest.charAt(i) === '"') break;
+      author += rest.charAt(i);
+      i++;
+    }
+    out.push({ quote: q.trim(), author: author.trim() });
+  }
+  return out;
+}
+
+function getQuotesList() {
+  if (!quotesListPromise) {
+    quotesListPromise = fetch(chrome.runtime.getURL("assets/quotes.csv"))
+      .then(function (res) {
+        return res.text();
+      })
+      .then(parseQuotesCsv)
+      .catch(function () {
+        return [];
+      });
+  }
+  return quotesListPromise;
+}
+
+function ensureHandwrittenQuoteFont() {
+  if (document.getElementById("fixmyfeed-quote-font")) return;
+  var link = document.createElement("link");
+  link.id = "fixmyfeed-quote-font";
+  link.rel = "stylesheet";
+  link.href =
+    "https://fonts.googleapis.com/css2?family=Caveat:wght@400;600&display=swap";
+  document.head.appendChild(link);
+}
+
+function clearBlockerQuoteTimer() {
+  if (blockerQuoteTickId !== null) {
+    clearInterval(blockerQuoteTickId);
+    blockerQuoteTickId = null;
+  }
+}
+
+function armBlockerQuoteDisplay(overlay) {
+  ensureHandwrittenQuoteFont();
+  clearBlockerQuoteTimer();
+  var quoteCol = overlay.querySelector("[data-fmf-quote-col]");
+  var quoteBody = overlay.querySelector("[data-fmf-quote-body]");
+  var quoteAuthor = overlay.querySelector("[data-fmf-quote-author]");
+  if (!quoteCol || !quoteBody || !quoteAuthor) return;
+
+  quoteCol.style.transition = "opacity 0.45s ease";
+  quoteCol.style.opacity = "1";
+  quoteCol.style.visibility = "visible";
+  quoteBody.textContent = "…";
+  quoteAuthor.textContent = "";
+
+  var accumMs = 0;
+  getQuotesList().then(function (list) {
+    if (!evalBlockingOverlay || evalBlockingOverlay !== overlay) return;
+    var pick =
+      list.length > 0
+        ? list[Math.floor(Math.random() * list.length)]
+        : { quote: "Fall in love with your world.", author: "" };
+    quoteBody.textContent = pick.quote;
+    quoteAuthor.textContent = pick.author ? "— " + pick.author : "";
+  });
+
+  blockerQuoteTickId = setInterval(function () {
+    if (!evalBlockingOverlay || !evalBlockingOverlay.parentNode) {
+      clearBlockerQuoteTimer();
+      return;
+    }
+    accumMs += 200;
+    if (accumMs >= BLOCKER_QUOTE_VISIBLE_MS) {
+      quoteCol.style.opacity = "0";
+      quoteCol.style.visibility = "hidden";
+      clearBlockerQuoteTimer();
+    }
+  }, 200);
+}
 
 function removeEvalBlockingOverlay() {
+  clearBlockerQuoteTimer();
   if (evalBlockingOverlay && evalBlockingOverlay.parentNode) {
     evalBlockingOverlay.remove();
   }
@@ -322,11 +483,17 @@ function removeEvalBlockingOverlay() {
 
 function ensureEvalBlockingOverlay() {
   if (evalBlockingOverlay && evalBlockingOverlay.parentNode) {
+    armBlockerQuoteDisplay(evalBlockingOverlay);
     return evalBlockingOverlay;
   }
   ensureFixMyFeedUiFont();
   var overlay = document.createElement("div");
-  overlay.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2147483646;";
+  overlay.style.cssText =
+    "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);display:flex;flex-direction:row;align-items:stretch;justify-content:stretch;z-index:2147483646;";
+
+  var leftCol = document.createElement("div");
+  leftCol.style.cssText =
+    "flex:2;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;padding:24px;";
 
   var spinner = document.createElement("div");
   spinner.style.cssText =
@@ -336,17 +503,40 @@ function ensureEvalBlockingOverlay() {
   text.style.cssText =
     "color:#f5f5f5;font-family:" +
     FIXMYFEED_FONT +
-    ";font-size:20px;font-weight:500;margin-top:28px;letter-spacing:0.02em;";
+    ";font-size:20px;font-weight:500;margin-top:28px;letter-spacing:0.02em;text-align:center;";
   text.textContent = "Evaluating content...";
 
+  var rightCol = document.createElement("div");
+  rightCol.setAttribute("data-fmf-quote-col", "1");
+  rightCol.style.cssText =
+    'flex:1;display:flex;flex-direction:column;justify-content:center;min-width:0;padding:28px 24px 28px 16px;border-left:1px solid rgba(255,255,255,0.12);font-family:"Caveat",cursive;font-weight:600;color:#f5f5f5;';
+
+  var quoteBody = document.createElement("div");
+  quoteBody.setAttribute("data-fmf-quote-body", "1");
+  quoteBody.style.cssText =
+    "font-size:clamp(26px,3.8vw,42px);line-height:1.22;text-shadow:0 1px 2px rgba(0,0,0,0.35);";
+
+  var quoteAuthor = document.createElement("div");
+  quoteAuthor.setAttribute("data-fmf-quote-author", "1");
+  quoteAuthor.style.cssText =
+    "margin-top:20px;font-size:clamp(20px,2.8vw,30px);font-weight:400;opacity:0.9;";
+
+  rightCol.appendChild(quoteBody);
+  rightCol.appendChild(quoteAuthor);
+
   var style = document.createElement("style");
-  style.textContent = "@keyframes shadowspin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}";
+  style.textContent =
+    "@keyframes shadowspin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}";
+
+  leftCol.appendChild(spinner);
+  leftCol.appendChild(text);
 
   overlay.appendChild(style);
-  overlay.appendChild(spinner);
-  overlay.appendChild(text);
+  overlay.appendChild(leftCol);
+  overlay.appendChild(rightCol);
   document.body.appendChild(overlay);
   evalBlockingOverlay = overlay;
+  armBlockerQuoteDisplay(overlay);
   return overlay;
 }
 
@@ -356,6 +546,8 @@ function ensureEvalBlockingOverlay() {
 const observer = new IntersectionObserver((entries) => {
   entries.forEach((entry) => {
     if (!entry.isIntersecting) return;
+
+    if (isIg && !isInstagramReelsUrl()) return;
 
     const container = entry.target;
 
@@ -445,8 +637,8 @@ const observer = new IntersectionObserver((entries) => {
         }
 
         const action = response.data.action;
-        const score = response.data.score;
-        const delayMs = response.data.delay_ms;
+        const delayMs =
+          typeof response.data.delay_ms === "number" ? response.data.delay_ms : 1100;
 
         if (action === "SKIP") {
           currentWatch = null;
@@ -456,39 +648,13 @@ const observer = new IntersectionObserver((entries) => {
               applyCreditFilter(status);
             }
           });
-          scrollToNext(container);
-          return;
-        }
-
-        if (action === "WAIT") {
-          muteVideoInContainer(container);
-          removeEvalBlockingOverlay();
-
-          getColorCreditStatus().then(function(status) {
-            if (status) {
-              latestCreditStatus = status;
-              applyCreditFilter(status);
-            }
-          });
-
-          // Set currentWatch so duration is logged via log_watch when scrolling away
-          currentWatch = {
-            action: action,
-            startTime: videoStartTime,
-            textContent: textContent,
-            dashboard: null,
-            categoryVector: response.data.category_vector || null,
-            deepAnalysis: response.data.deep_analysis || null
-          };
-          
-          setTimeout(() => {
-            logCurrentWatch();
-            scrollToNext(container);
+          setTimeout(function () {
+            scrollToNextReliable(container);
           }, delayMs);
           return;
         }
 
-        if (action !== "LIKE_AND_STAY") {
+        if (action !== "LIKE_AND_STAY" && action !== "WAIT") {
           removeEvalBlockingOverlay();
           return;
         }
@@ -518,7 +684,7 @@ const observer = new IntersectionObserver((entries) => {
         dashboard.style.maxWidth = "min(94vw, 420px)";
         dashboard.style.letterSpacing = "0.01em";
 
-        var label = "ACTION: " + action + " | SCORE: " + score;
+        var label = "ACTION: " + action;
         if (response.data.reason) label += "\n" + response.data.reason;
         label += "\n" + formatCreditLine(latestCreditStatus);
         dashboard.setAttribute("data-base-label", label);
@@ -550,7 +716,7 @@ const observer = new IntersectionObserver((entries) => {
             updateDashboardCredits(dashboard, status);
           }
 
-          if (response.data.autolike) {
+          if (action === "LIKE_AND_STAY" && response.data.autolike) {
             if (isIg) {
               let wrapper = container;
               for (let i = 0; i < 6; i++) {
@@ -589,12 +755,16 @@ const observer = new IntersectionObserver((entries) => {
 // ---------------------------------------------------------------------------
 setInterval(() => {
   if (isIg) {
+    if (!isInstagramReelsUrl()) {
+      removeEvalBlockingOverlay();
+      return;
+    }
     const videos = document.querySelectorAll('video:not([data-observed])');
     videos.forEach((el) => {
       el.setAttribute("data-observed", "true");
       observer.observe(el);
     });
-    
+
     const reelContainers = document.querySelectorAll('article:not([data-observed]), div[role="dialog"] video:not([data-observed])');
     reelContainers.forEach((el) => {
       if (!el.getAttribute("data-observed")) {
@@ -611,7 +781,7 @@ setInterval(() => {
       observer.observe(el);
     });
   }
-}, 1000);
+}, 1450);
 
 function refreshCreditStatusAndFilter() {
   getColorCreditStatus().then(function(status) {
@@ -624,8 +794,12 @@ function refreshCreditStatusAndFilter() {
 refreshCreditStatusAndFilter();
 setInterval(refreshCreditStatusAndFilter, CREDIT_REFRESH_MS);
 
-if (isIg) {
-  console.log("[Shadow-Scroll] Instagram mode active - watching for reels...");
+if (isIg && isInstagramReelsUrl()) {
+  console.log("[Shadow-Scroll] Instagram Reels tab — evaluation active");
 }
+
+window.addEventListener("popstate", function () {
+  if (isIg && !isInstagramReelsUrl()) removeEvalBlockingOverlay();
+});
 
 
