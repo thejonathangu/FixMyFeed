@@ -1,13 +1,15 @@
+const API_BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+
 export interface NodeData {
   id: string;
-  weight: number;           // 0..1 — drives visual radius
-  category: 'toxic' | 'value';
+  weight: number;
+  category: 'toxic' | 'value' | 'neutral';
   theme_name: string;
   description: string;
   x: number;
   y: number;
-  z: number;               // depth axis for 3D perspective
-  connections: string[];    // ids of connected nodes
+  z: number;
+  connections: string[];
 }
 
 export interface Snapshot {
@@ -18,7 +20,7 @@ export interface Snapshot {
     toxic_intercepted: number;
     value_reinforced: number;
     rewiring_pct: number;
-    avg_session_quality: number;   // 0..100
+    avg_session_quality: number;
     positive_watchtime_min: number;
     total_watchtime_min: number;
   };
@@ -29,9 +31,37 @@ export interface EvolvingDopamineStats {
   snapshots: Snapshot[];
 }
 
-// ---------------------------------------------------------------------------
-// Seeded RNG
-// ---------------------------------------------------------------------------
+export interface WatchtimePoint {
+  day: number;
+  label: string;
+  positive_min: number;
+  toxic_min: number;
+  total_min: number;
+  quality_score: number;
+}
+
+interface EventRecord {
+  created_at: string;
+  action_type: string;
+  duration_ms: number;
+  category_vector?: string[];
+  deep_analysis?: {
+    themes?: string[];
+    dopamine_trigger?: string;
+    growth_potential?: string;
+  };
+}
+
+interface StatsData {
+  skipped: number;
+  liked: number;
+  waited: number;
+  total_watch_time_min: number;
+  positive_watch_time_min: number;
+  quality_ratio: number;
+  events: EventRecord[];
+}
+
 function seededRandom(seed: string): () => number {
   let h = 0;
   for (let i = 0; i < seed.length; i++) {
@@ -45,212 +75,367 @@ function seededRandom(seed: string): () => number {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Node definitions with richer metadata
-// ---------------------------------------------------------------------------
-const TOXIC_NODES = [
-  { name: 'Rage Bait', desc: 'Content designed to provoke anger for engagement. Hijacks amygdala response.' },
-  { name: 'Doomscrolling', desc: 'Infinite negative news loops. Depletes dopamine reserves.' },
-  { name: 'Outrage Loops', desc: 'Circular arguments that maximize comment section time.' },
-  { name: 'Clickbait Hooks', desc: 'Misleading thumbnails and titles exploiting curiosity gap.' },
-  { name: 'Fear Mongering', desc: 'Anxiety-inducing content that keeps you checking back.' },
-  { name: 'Hot Takes', desc: 'Shallow provocative opinions optimized for shares.' },
-  { name: 'Drama Farming', desc: 'Manufactured interpersonal conflict for views.' },
-  { name: 'Engagement Traps', desc: 'Comment-bait questions designed to boost algorithm metrics.' },
-  { name: 'Controversy Mining', desc: 'Exploiting divisive topics for maximum reach.' },
-  { name: 'Hate Threads', desc: 'Pile-on content that triggers mob participation.' },
-  { name: 'Toxic Debates', desc: 'Bad-faith arguments that waste cognitive energy.' },
-  { name: 'Shock Content', desc: 'Extreme content that hijacks attention through cortisol.' },
-  { name: 'Anxiety Feeds', desc: 'Curated doom that amplifies health/financial/social fear.' },
-  { name: 'Virtue Signaling', desc: 'Performative morality for social currency.' },
-  { name: 'Cancel Culture', desc: 'Public shaming cycles that reward punitive engagement.' },
-];
-
-const VALUE_NODES = [
-  { name: 'SQL Optimization', desc: 'Query performance tuning, indexing strategies, execution plans.' },
-  { name: 'Tennis Strategy', desc: 'Serve patterns, court positioning, match analysis.' },
-  { name: 'Systems Design', desc: 'Distributed systems, scalability patterns, architecture.' },
-  { name: 'Deep Work', desc: 'Focus techniques, flow state, distraction elimination.' },
-  { name: 'Spaced Repetition', desc: 'Memory retention algorithms, Anki workflows, learning science.' },
-  { name: 'Type Theory', desc: 'Type systems, lambda calculus, formal verification.' },
-  { name: 'Music Production', desc: 'Sound design, mixing, synthesis, DAW workflows.' },
-  { name: 'Rock Climbing', desc: 'Route reading, training protocols, movement technique.' },
-  { name: 'Meditation', desc: 'Mindfulness practice, breath work, awareness training.' },
-  { name: 'Creative Writing', desc: 'Story structure, prose craft, worldbuilding techniques.' },
-  { name: 'Data Viz', desc: 'Visual encoding, chart selection, perception science.' },
-  { name: 'Biomechanics', desc: 'Movement analysis, injury prevention, performance optimization.' },
-  { name: 'Philosophy', desc: 'Ethics, epistemology, critical thinking frameworks.' },
-  { name: 'Open Source', desc: 'Community building, contribution workflows, project governance.' },
-  { name: 'Cooking Techniques', desc: 'Flavor science, heat control, knife skills, fermentation.' },
-];
-
-// Connection groups — nodes that naturally relate
-const VALUE_CLUSTERS: string[][] = [
-  ['value-0', 'value-2', 'value-5', 'value-13'],  // tech/systems
-  ['value-3', 'value-4', 'value-8', 'value-12'],   // focus/mind
-  ['value-1', 'value-7', 'value-11'],               // physical
-  ['value-6', 'value-9', 'value-10', 'value-14'],   // creative
-];
-
-const TOXIC_CLUSTERS: string[][] = [
-  ['toxic-0', 'toxic-2', 'toxic-9', 'toxic-10'],
-  ['toxic-1', 'toxic-4', 'toxic-12'],
-  ['toxic-3', 'toxic-5', 'toxic-7'],
-  ['toxic-6', 'toxic-8', 'toxic-11', 'toxic-13', 'toxic-14'],
-];
-
-function getConnections(id: string): string[] {
-  const clusters = [...VALUE_CLUSTERS, ...TOXIC_CLUSTERS];
-  const conns: string[] = [];
-  for (const cluster of clusters) {
-    if (cluster.includes(id)) {
-      for (const peer of cluster) {
-        if (peer !== id) conns.push(peer);
-      }
-    }
-  }
-  return conns;
+interface ThemeData {
+  name: string;
+  category: 'value' | 'toxic' | 'neutral';
+  count: number;
+  firstSeen: number;
+  lastSeen: number;
+  triggers: string[];
 }
 
-function buildNodes(day: number, maxDay: number): NodeData[] {
-  const t = day / maxDay;
+function extractThemesFromEvents(events: EventRecord[]): Map<string, ThemeData> {
+  const themeMap = new Map<string, ThemeData>();
+  
+  events.forEach((event, idx) => {
+    const isValue = event.action_type === 'LIKE_AND_STAY';
+    const isToxic = event.action_type === 'SKIP';
+    const isNeutral = event.action_type === 'WAIT';
+    
+    if (!isValue && !isToxic && !isNeutral) return;
+    
+    const themes = event.deep_analysis?.themes || event.category_vector || [];
+    const trigger = event.deep_analysis?.dopamine_trigger || 'unknown';
+    
+    const category: 'value' | 'toxic' | 'neutral' = isValue ? 'value' : isToxic ? 'toxic' : 'neutral';
+    
+    for (const theme of themes) {
+      if (!theme || theme.length < 2) continue;
+      
+      const existing = themeMap.get(theme);
+      if (existing) {
+        existing.count++;
+        existing.lastSeen = idx;
+        if (!existing.triggers.includes(trigger)) {
+          existing.triggers.push(trigger);
+        }
+        // Upgrade category: value > neutral > toxic
+        if (category === 'value') {
+          existing.category = 'value';
+        } else if (category === 'neutral' && existing.category === 'toxic') {
+          existing.category = 'neutral';
+        }
+      } else {
+        themeMap.set(theme, {
+          name: theme,
+          category,
+          count: 1,
+          firstSeen: idx,
+          lastSeen: idx,
+          triggers: [trigger],
+        });
+      }
+    }
+  });
+  
+  return themeMap;
+}
+
+function buildNodesAtTime(
+  themes: Map<string, ThemeData>,
+  timeProgress: number,
+  totalEvents: number,
+): NodeData[] {
   const nodes: NodeData[] = [];
-
-  TOXIC_NODES.forEach((def, i) => {
-    const rng = seededRandom(`toxic-${i}`);
-    const baseWeight = 0.5 + rng() * 0.5;
-    const weight = Math.max(0.05, baseWeight * (1 - t * 0.9));
-
-    // Start mixed in, drift outward to edges
-    const angle = (i / TOXIC_NODES.length) * Math.PI * 2 + rng() * 0.4;
-    const radius = 0.15 + t * 0.35 + rng() * 0.05;
-
+  
+  const valueThemes = Array.from(themes.values())
+    .filter(t => t.category === 'value')
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 12);
+  
+  const toxicThemes = Array.from(themes.values())
+    .filter(t => t.category === 'toxic')
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 12);
+  
+  const neutralThemes = Array.from(themes.values())
+    .filter(t => t.category === 'neutral')
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+  
+  const maxCount = Math.max(
+    ...valueThemes.map(t => t.count),
+    ...toxicThemes.map(t => t.count),
+    ...neutralThemes.map(t => t.count),
+    1
+  );
+  
+  // Toxic themes: start central, drift outward
+  toxicThemes.forEach((theme, i) => {
+    const rng = seededRandom(theme.name);
+    const baseWeight = (theme.count / maxCount) * 0.7 + 0.3;
+    const weight = Math.max(0.08, baseWeight * (1 - timeProgress * 0.85));
+    
+    const angle = (i / Math.max(toxicThemes.length, 1)) * Math.PI * 2 + rng() * 0.3;
+    const radius = 0.12 + timeProgress * 0.32 + rng() * 0.06;
+    
     nodes.push({
       id: `toxic-${i}`,
       weight,
       category: 'toxic',
-      theme_name: def.name,
-      description: def.desc,
+      theme_name: theme.name,
+      description: `Seen ${theme.count}x | ${theme.triggers.slice(0, 2).join(', ')}`,
       x: 0.5 + Math.cos(angle) * radius,
       y: 0.5 + Math.sin(angle) * radius,
-      z: (rng() - 0.5) * 0.6,
-      connections: getConnections(`toxic-${i}`),
+      z: (rng() - 0.5) * 0.5,
+      connections: toxicThemes
+        .filter((_, j) => j !== i && Math.abs(j - i) <= 2)
+        .slice(0, 3)
+        .map((_, j) => `toxic-${j}`),
     });
   });
-
-  VALUE_NODES.forEach((def, i) => {
-    const rng = seededRandom(`value-${i}`);
-    const baseWeight = 0.1 + rng() * 0.2;
-    const weight = baseWeight + t * (0.85 - baseWeight);
-
-    // Start scattered, cluster to center
+  
+  // Neutral themes: drift from outer to middle ring over time
+  neutralThemes.forEach((theme, i) => {
+    const rng = seededRandom(theme.name);
+    const baseWeight = (theme.count / maxCount) * 0.5 + 0.2;
+    const weight = baseWeight + timeProgress * 0.15; // Slight growth over time
+    
+    const angle = (i / Math.max(neutralThemes.length, 1)) * Math.PI * 2 + rng() * 0.4 + Math.PI / 4;
+    // Start at outer ring, drift to middle ring
+    const startRadius = 0.35 + rng() * 0.08;
+    const endRadius = 0.18 + rng() * 0.06;
+    const radius = startRadius + (endRadius - startRadius) * timeProgress;
+    
+    nodes.push({
+      id: `neutral-${i}`,
+      weight,
+      category: 'neutral',
+      theme_name: theme.name,
+      description: `Seen ${theme.count}x | ${theme.triggers.slice(0, 2).join(', ')}`,
+      x: 0.5 + Math.cos(angle) * radius,
+      y: 0.5 + Math.sin(angle) * radius,
+      z: (rng() - 0.5) * 0.3,
+      connections: neutralThemes
+        .filter((_, j) => j !== i && Math.abs(j - i) <= 2)
+        .slice(0, 2)
+        .map((_, j) => `neutral-${j}`),
+    });
+  });
+  
+  // Value themes: start scattered, cluster to center
+  valueThemes.forEach((theme, i) => {
+    const rng = seededRandom(theme.name);
+    const baseWeight = (theme.count / maxCount) * 0.5 + 0.15;
+    const weight = Math.min(1, baseWeight + timeProgress * (0.9 - baseWeight));
+    
     const cluster = i % 4;
-    const clusterAngle = (cluster / 4) * Math.PI * 2 + 0.5;
-    const spread = 0.3 * (1 - t) + 0.05;
-    const angle = clusterAngle + (rng() - 0.5) * spread * 3;
-    const radius = 0.32 * (1 - t * 0.7) + rng() * 0.04;
-
+    const clusterAngle = (cluster / 4) * Math.PI * 2 + 0.4;
+    const spread = 0.35 * (1 - timeProgress) + 0.08;
+    const angle = clusterAngle + (rng() - 0.5) * spread * 2.5;
+    const radius = 0.28 * (1 - timeProgress * 0.65) + rng() * 0.05;
+    
     nodes.push({
       id: `value-${i}`,
       weight,
       category: 'value',
-      theme_name: def.name,
-      description: def.desc,
+      theme_name: theme.name,
+      description: `Seen ${theme.count}x | ${theme.triggers.slice(0, 2).join(', ')}`,
       x: 0.5 + Math.cos(angle) * radius,
       y: 0.5 + Math.sin(angle) * radius,
-      z: (rng() - 0.5) * 0.5,
-      connections: getConnections(`value-${i}`),
+      z: (rng() - 0.5) * 0.4,
+      connections: valueThemes
+        .filter((_, j) => j !== i && Math.abs(j - i) <= 2)
+        .slice(0, 3)
+        .map((_, j) => `value-${j}`),
     });
   });
-
+  
   return nodes;
 }
 
-// ---------------------------------------------------------------------------
-// Watchtime / attention analytics data
-// ---------------------------------------------------------------------------
-export interface WatchtimePoint {
-  day: number;
-  label: string;
-  positive_min: number;
-  toxic_min: number;
-  total_min: number;
-  quality_score: number;  // 0..100
-}
-
-function generateWatchtimeData(): WatchtimePoint[] {
-  const points: WatchtimePoint[] = [];
-  const days = [0, 1, 2, 3, 5, 7, 10, 14, 18, 21, 25, 30];
-  const labels = ['D0', 'D1', 'D2', 'D3', 'D5', 'W1', 'D10', 'W2', 'D18', 'W3', 'D25', 'M1'];
-
-  days.forEach((day, i) => {
-    const t = day / 30;
-    const rng = seededRandom(`wt-${day}`);
-    const jitter = (rng() - 0.5) * 8;
-
-    const total = 120 + t * 30 + jitter;
-    const toxicRatio = Math.max(0.05, 0.65 * (1 - t * 1.1));
-    const toxic_min = Math.round(total * toxicRatio);
-    const positive_min = Math.round(total - toxic_min);
-
-    points.push({
-      day,
-      label: labels[i],
-      positive_min,
-      toxic_min,
-      total_min: Math.round(total),
-      quality_score: Math.min(100, Math.round(20 + t * 75 + jitter * 0.3)),
-    });
-  });
-
-  return points;
-}
-
-// ---------------------------------------------------------------------------
-// Generate snapshots
-// ---------------------------------------------------------------------------
-function generateSnapshots(): Snapshot[] {
-  const days = [0, 1, 3, 7, 14, 21, 30];
-  const labels = ['Day 0', 'Day 1', 'Day 3', 'Week 1', 'Week 2', 'Week 3', 'Month 1'];
-  const maxDay = 30;
-
-  return days.map((day, i) => {
-    const t = day / maxDay;
-    const rng = seededRandom(`snap-${day}`);
+function generateSnapshotsFromEvents(events: EventRecord[]): Snapshot[] {
+  if (events.length === 0) return [];
+  
+  const themes = extractThemesFromEvents(events);
+  if (themes.size === 0) return [];
+  
+  const timelinePoints = [0, 0.15, 0.3, 0.5, 0.7, 0.85, 1.0];
+  const labels = ['Start', 'Early', 'Building', 'Midpoint', 'Progress', 'Late', 'Current'];
+  
+  let cumulativeSkipped = 0;
+  let cumulativeLiked = 0;
+  let cumulativePositiveMs = 0;
+  let cumulativeTotalMs = 0;
+  
+  return timelinePoints.map((t, idx) => {
+    const eventCutoff = Math.floor(t * events.length);
+    const eventsUpToNow = events.slice(0, eventCutoff || 1);
+    
+    const skipped = eventsUpToNow.filter(e => e.action_type === 'SKIP').length;
+    const liked = eventsUpToNow.filter(e => e.action_type === 'LIKE_AND_STAY').length;
+    const positiveMs = eventsUpToNow
+      .filter(e => e.action_type === 'LIKE_AND_STAY')
+      .reduce((sum, e) => sum + (e.duration_ms || 0), 0);
+    const totalMs = eventsUpToNow.reduce((sum, e) => sum + (e.duration_ms || 0), 0);
+    
     return {
-      timestamp: labels[i],
-      day,
-      nodes: buildNodes(day, maxDay),
+      timestamp: labels[idx],
+      day: idx,
+      nodes: buildNodesAtTime(themes, t, events.length),
       stats: {
-        toxic_intercepted: Math.round(day * 12 + day * day * 0.3),
-        value_reinforced: Math.round(day * 8 + day * day * 0.5),
+        toxic_intercepted: skipped,
+        value_reinforced: liked,
         rewiring_pct: Math.min(100, Math.round(t * 100)),
-        avg_session_quality: Math.min(100, Math.round(20 + t * 72 + (rng() - 0.5) * 6)),
-        positive_watchtime_min: Math.round(45 + t * 80),
-        total_watchtime_min: Math.round(120 + t * 30),
+        avg_session_quality: totalMs > 0 ? Math.round((positiveMs / totalMs) * 100) : 50,
+        positive_watchtime_min: Math.round(positiveMs / 60000),
+        total_watchtime_min: Math.round(totalMs / 60000),
       },
     };
   });
 }
 
-const MOCK_DATA: EvolvingDopamineStats = {
-  user_id: 'neuro-shield-demo',
-  snapshots: generateSnapshots(),
-};
+function generateWatchtimeFromEvents(events: EventRecord[]): WatchtimePoint[] {
+  const byDate = new Map<string, EventRecord[]>();
+  
+  for (const e of events) {
+    const date = e.created_at?.split('T')[0] || 'unknown';
+    if (!byDate.has(date)) byDate.set(date, []);
+    byDate.get(date)!.push(e);
+  }
+  
+  const sortedDates = Array.from(byDate.keys()).sort();
+  
+  return sortedDates.map((date, idx) => {
+    const dayEvents = byDate.get(date) || [];
+    
+    const positiveMs = dayEvents
+      .filter(e => e.action_type === 'LIKE_AND_STAY')
+      .reduce((sum, e) => sum + (e.duration_ms || 0), 0);
+    
+    const toxicMs = dayEvents
+      .filter(e => e.action_type === 'SKIP')
+      .reduce((sum, e) => sum + (e.duration_ms || 0), 0);
+    
+    const waitMs = dayEvents
+      .filter(e => e.action_type === 'WAIT')
+      .reduce((sum, e) => sum + (e.duration_ms || 0), 0);
+    
+    const totalMs = positiveMs + toxicMs + waitMs;
+    
+    return {
+      day: idx,
+      label: date.slice(5),
+      positive_min: Math.round(positiveMs / 60000),
+      toxic_min: Math.round(toxicMs / 60000),
+      total_min: Math.round(totalMs / 60000),
+      quality_score: totalMs > 0 ? Math.round((positiveMs / totalMs) * 100) : 50,
+    };
+  });
+}
 
-const MOCK_WATCHTIME = generateWatchtimeData();
+// ---------------------------------------------------------------------------
+// Demo data (fallback when no real data)
+// ---------------------------------------------------------------------------
+function generateDemoSnapshots(): Snapshot[] {
+  const demoThemes = new Map<string, ThemeData>([
+    ['productivity', { name: 'productivity', category: 'value', count: 8, firstSeen: 0, lastSeen: 10, triggers: ['mastery'] }],
+    ['learning', { name: 'learning', category: 'value', count: 6, firstSeen: 1, lastSeen: 9, triggers: ['curiosity'] }],
+    ['fitness', { name: 'fitness', category: 'value', count: 5, firstSeen: 2, lastSeen: 8, triggers: ['mastery'] }],
+    ['creativity', { name: 'creativity', category: 'value', count: 4, firstSeen: 3, lastSeen: 7, triggers: ['awe'] }],
+    ['mindfulness', { name: 'mindfulness', category: 'value', count: 3, firstSeen: 4, lastSeen: 6, triggers: ['curiosity'] }],
+    ['drama', { name: 'drama', category: 'toxic', count: 7, firstSeen: 0, lastSeen: 5, triggers: ['outrage'] }],
+    ['rage bait', { name: 'rage bait', category: 'toxic', count: 5, firstSeen: 1, lastSeen: 4, triggers: ['outrage'] }],
+    ['clickbait', { name: 'clickbait', category: 'toxic', count: 4, firstSeen: 2, lastSeen: 3, triggers: ['fear'] }],
+    ['gossip', { name: 'gossip', category: 'toxic', count: 3, firstSeen: 0, lastSeen: 2, triggers: ['social_validation'] }],
+  ]);
+  
+  const timelinePoints = [0, 0.15, 0.3, 0.5, 0.7, 0.85, 1.0];
+  const labels = ['Start', 'Early', 'Building', 'Midpoint', 'Progress', 'Late', 'Current'];
+  
+  return timelinePoints.map((t, idx) => ({
+    timestamp: labels[idx],
+    day: idx,
+    nodes: buildNodesAtTime(demoThemes, t, 50),
+    stats: {
+      toxic_intercepted: Math.round(t * 45),
+      value_reinforced: Math.round(t * 32),
+      rewiring_pct: Math.round(t * 100),
+      avg_session_quality: Math.round(25 + t * 60),
+      positive_watchtime_min: Math.round(t * 85),
+      total_watchtime_min: Math.round(50 + t * 70),
+    },
+  }));
+}
+
+function generateDemoWatchtime(): WatchtimePoint[] {
+  return [
+    { day: 0, label: 'Day 1', positive_min: 12, toxic_min: 45, total_min: 57, quality_score: 21 },
+    { day: 1, label: 'Day 2', positive_min: 18, toxic_min: 38, total_min: 56, quality_score: 32 },
+    { day: 2, label: 'Day 3', positive_min: 25, toxic_min: 32, total_min: 57, quality_score: 44 },
+    { day: 3, label: 'Day 4', positive_min: 35, toxic_min: 25, total_min: 60, quality_score: 58 },
+    { day: 4, label: 'Day 5', positive_min: 42, toxic_min: 20, total_min: 62, quality_score: 68 },
+    { day: 5, label: 'Day 6', positive_min: 50, toxic_min: 15, total_min: 65, quality_score: 77 },
+    { day: 6, label: 'Day 7', positive_min: 55, toxic_min: 12, total_min: 67, quality_score: 82 },
+  ];
+}
 
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
-export async function fetchEvolvingDopamineStats(): Promise<EvolvingDopamineStats> {
-  await new Promise((r) => setTimeout(r, 300));
-  return structuredClone(MOCK_DATA);
+export async function fetchEvolvingDopamineStats(userId?: string): Promise<EvolvingDopamineStats> {
+  if (!userId) {
+    userId = localStorage.getItem('fixmyfeed_user_id') || '';
+  }
+  
+  console.log('[DataService] Fetching stats for userId:', userId);
+  
+  if (userId) {
+    try {
+      const response = await fetch(`${API_BASE}/stats/${userId}`);
+      console.log('[DataService] Response status:', response.status);
+      
+      if (response.ok) {
+        const data: StatsData = await response.json();
+        console.log('[DataService] Events count:', data.events?.length);
+        
+        if (data.events && data.events.length >= 5) {
+          const themes = extractThemesFromEvents(data.events);
+          console.log('[DataService] Extracted themes:', themes.size);
+          
+          const snapshots = generateSnapshotsFromEvents(data.events);
+          console.log('[DataService] Generated snapshots:', snapshots.length);
+          
+          if (snapshots.length > 0) {
+            console.log('[DataService] Returning REAL data');
+            return { user_id: userId, snapshots };
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[DataService] Error fetching:', err);
+    }
+  }
+  
+  console.log('[DataService] Falling back to DEMO data');
+  await new Promise(r => setTimeout(r, 200));
+  return { user_id: userId || 'demo', snapshots: generateDemoSnapshots() };
 }
 
-export async function fetchWatchtimeData(): Promise<WatchtimePoint[]> {
-  await new Promise((r) => setTimeout(r, 200));
-  return structuredClone(MOCK_WATCHTIME);
+export async function fetchWatchtimeData(userId?: string): Promise<WatchtimePoint[]> {
+  if (!userId) {
+    userId = localStorage.getItem('fixmyfeed_user_id') || '';
+  }
+  
+  if (userId) {
+    try {
+      const response = await fetch(`${API_BASE}/stats/${userId}`);
+      if (response.ok) {
+        const data: StatsData = await response.json();
+        if (data.events && data.events.length >= 3) {
+          const watchtime = generateWatchtimeFromEvents(data.events);
+          if (watchtime.length > 0) {
+            return watchtime;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Could not fetch real watchtime:', err);
+    }
+  }
+  
+  await new Promise(r => setTimeout(r, 150));
+  return generateDemoWatchtime();
 }
 
 // ---------------------------------------------------------------------------
@@ -264,6 +449,18 @@ export function interpolateSnapshots(
   snapshots: Snapshot[],
   progress: number,
 ): { nodes: NodeData[]; stats: Snapshot['stats']; label: string } {
+  if (snapshots.length === 0) {
+    return {
+      nodes: [],
+      stats: { toxic_intercepted: 0, value_reinforced: 0, rewiring_pct: 0, avg_session_quality: 0, positive_watchtime_min: 0, total_watchtime_min: 0 },
+      label: 'No data',
+    };
+  }
+  
+  if (snapshots.length === 1) {
+    return { nodes: snapshots[0].nodes, stats: snapshots[0].stats, label: snapshots[0].timestamp };
+  }
+  
   const maxIdx = snapshots.length - 1;
   const raw = progress * maxIdx;
   const lo = Math.floor(raw);
@@ -274,7 +471,7 @@ export function interpolateSnapshots(
   const b = snapshots[hi];
 
   const nodes: NodeData[] = a.nodes.map((nodeA, i) => {
-    const nodeB = b.nodes[i];
+    const nodeB = b.nodes.find(n => n.id === nodeA.id) || b.nodes[i] || nodeA;
     return {
       id: nodeA.id,
       weight: lerp(nodeA.weight, nodeB.weight, t),
@@ -283,7 +480,7 @@ export function interpolateSnapshots(
       description: nodeA.description,
       x: lerp(nodeA.x, nodeB.x, t),
       y: lerp(nodeA.y, nodeB.y, t),
-      z: lerp(nodeA.z ?? 0, nodeB.z ?? 0, t),
+      z: lerp(nodeA.z, nodeB.z, t),
       connections: nodeA.connections,
     };
   });

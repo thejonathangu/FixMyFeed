@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import AttentionChart from '../components/AttentionChart';
+import { useCountUp } from '../hooks/useCountUp';
 import {
   fetchWatchtimeData,
   fetchEvolvingDopamineStats,
@@ -8,14 +9,54 @@ import {
   type Snapshot,
 } from '../services/dataService';
 
+const GREEN = '#4e7754';
+const ROSE = '#a86063';
+
+const staggerContainer = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.09, delayChildren: 0.06 },
+  },
+};
+
+const staggerEase = [0.22, 1, 0.36, 1] as const;
+
+const staggerItem = {
+  hidden: { opacity: 0, y: 12 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.4, ease: staggerEase },
+  },
+};
+
 export default function Analytics() {
   const [watchtime, setWatchtime] = useState<WatchtimePoint[] | null>(null);
   const [snapshots, setSnapshots] = useState<Snapshot[] | null>(null);
+  const [userId, setUserId] = useState<string>('');
+  const [isRealData, setIsRealData] = useState(false);
 
   useEffect(() => {
-    fetchWatchtimeData().then(setWatchtime);
-    fetchEvolvingDopamineStats().then((d) => setSnapshots(d.snapshots));
+    const stored = localStorage.getItem('fixmyfeed_user_id') || '';
+    setUserId(stored);
+    
+    fetchWatchtimeData(stored).then(setWatchtime);
+    fetchEvolvingDopamineStats(stored).then((d) => {
+      setSnapshots(d.snapshots);
+      setIsRealData(stored !== '' && d.user_id !== 'demo');
+    });
   }, []);
+
+  const handleUserIdSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const input = form.elements.namedItem('userId') as HTMLInputElement;
+    if (input.value.trim()) {
+      localStorage.setItem('fixmyfeed_user_id', input.value.trim());
+      window.location.reload();
+    }
+  };
 
   if (!watchtime || !snapshots) {
     return (
@@ -23,8 +64,8 @@ export default function Analytics() {
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
-          className="w-10 h-10 border border-value/30 rounded-full"
-          style={{ borderTopColor: '#00ffd5' }}
+          className="w-10 h-10 border rounded-full border-stone-300"
+          style={{ borderTopColor: GREEN }}
         />
       </div>
     );
@@ -66,90 +107,145 @@ export default function Analytics() {
     .sort((a, b) => a.delta - b.delta);
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="max-w-6xl mx-auto px-8 py-8 space-y-8">
-        {/* Header */}
+    <motion.div
+      className="h-full overflow-y-auto"
+      variants={staggerContainer}
+      initial="hidden"
+      animate="show"
+    >
+      {/* User ID prompt banner when no user or demo data */}
+      {!isRealData && (
         <motion.div
-          initial={{ opacity: 0, y: 15 }}
+          initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
+          className="mx-6 sm:mx-10 mt-6 px-4 py-3 rounded-xl border"
+          style={{
+            background: 'linear-gradient(90deg, rgba(181, 132, 61, 0.12), rgba(253, 250, 246, 0.9))',
+            borderColor: 'rgba(181, 132, 61, 0.25)',
+          }}
         >
-          <h2 className="font-display text-xl tracking-[0.1em] text-text-primary uppercase mb-1">
-            Attention Analytics
-          </h2>
-          <p className="text-sm text-text-muted">
-            Track how your watchtime shifts from toxic to positive over 30 days.
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span style={{ color: '#b5843d' }}>⚡</span>
+              <span className="font-body text-xs text-text-primary">
+                {userId ? 'Showing demo data — no events found' : 'Enter your User ID to see real analytics'}
+              </span>
+            </div>
+            <form onSubmit={handleUserIdSubmit} className="flex gap-2">
+              <input
+                name="userId"
+                type="text"
+                defaultValue={userId}
+                placeholder="User ID from extension"
+                className="px-3 py-1.5 rounded-lg border font-body text-xs w-48"
+                style={{
+                  borderColor: 'rgba(44, 38, 31, 0.15)',
+                  background: 'white',
+                }}
+              />
+              <button
+                type="submit"
+                className="px-3 py-1.5 rounded-lg font-body text-xs font-medium"
+                style={{
+                  background: '#b5843d',
+                  color: 'white',
+                }}
+              >
+                Load
+              </button>
+            </form>
+          </div>
+        </motion.div>
+      )}
+
+      <div className="max-w-6xl mx-auto px-6 sm:px-10 py-8 sm:py-10 space-y-9">
+        <motion.div variants={staggerItem} className="flex items-start justify-between">
+          <div>
+            <h2 className="font-body text-xl font-medium tracking-tight text-text-primary mb-1">
+              Attention analytics
+            </h2>
+            <p className="text-sm text-text-muted">
+              Track how your watchtime shifts from toxic to positive over time.
+            </p>
+          </div>
+          {isRealData && (
+            <span
+              className="px-2 py-1 rounded-full font-body text-[10px] uppercase tracking-wide"
+              style={{ background: 'rgba(78, 119, 84, 0.15)', color: GREEN }}
+            >
+              Live Data
+            </span>
+          )}
         </motion.div>
 
-        {/* Stat cards */}
         <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1, duration: 0.5 }}
-          className="grid grid-cols-2 md:grid-cols-4 gap-4"
+          variants={staggerItem}
+          className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5"
         >
           <MetricCard
             label="Quality Score"
-            value={`${latest.quality_score}%`}
-            delta={`+${qualityDelta}%`}
-            positive
+            accent="green"
+            countValue={latest.quality_score}
+            suffix="%"
+            deltaText={`${qualityDelta >= 0 ? '+' : ''}${qualityDelta}%`}
+            trend={{
+              direction: qualityDelta >= 0 ? 'up' : 'down',
+              good: qualityDelta >= 0,
+            }}
           />
           <MetricCard
             label="Positive Watchtime"
-            value={`${latest.positive_min}m`}
-            delta={`+${positiveDelta}m`}
-            positive
+            accent="green"
+            countValue={latest.positive_min}
+            suffix="m"
+            deltaText={`${positiveDelta >= 0 ? '+' : ''}${positiveDelta}m`}
+            trend={{
+              direction: positiveDelta >= 0 ? 'up' : 'down',
+              good: positiveDelta >= 0,
+            }}
           />
           <MetricCard
             label="Toxic Reduced"
-            value={`${latest.toxic_min}m`}
-            delta={`-${toxicDelta}m`}
-            positive
+            accent="rose"
+            countValue={latest.toxic_min}
+            suffix="m"
+            deltaText={`${toxicDelta >= 0 ? '-' : '+'}${Math.abs(toxicDelta)}m`}
+            trend={{
+              direction: toxicDelta >= 0 ? 'down' : 'up',
+              good: toxicDelta >= 0,
+            }}
+            deltaHint=" over 30d"
           />
           <MetricCard
-            label="Total Daily"
-            value={`${latest.total_min}m`}
-            delta=""
-            positive={false}
+            label="Total daily"
+            accent="synapse"
+            countValue={latest.total_min}
+            suffix="m"
+            deltaText=""
+            trend={null}
           />
         </motion.div>
 
-        {/* Main chart — self-sizing via ResizeObserver */}
         <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.5 }}
-          className="rounded-xl border overflow-hidden"
-          style={{
-            background:
-              'linear-gradient(135deg, rgba(12, 12, 20, 0.6), rgba(10, 10, 18, 0.4))',
-            borderColor: 'rgba(255, 255, 255, 0.04)',
-          }}
+          variants={staggerItem}
+          className="rounded-2xl border overflow-hidden glass-frosted"
+          style={{ borderColor: 'rgba(44, 38, 31, 0.11)' }}
         >
-          <div className="px-5 pt-5 pb-2">
-            <h3 className="font-display text-xs tracking-[0.15em] text-text-muted uppercase">
-              Watchtime Distribution
+          <div className="px-6 pt-5 pb-1">
+            <h3 className="font-body text-xs tracking-wide text-text-muted uppercase">
+              Watchtime distribution
             </h3>
           </div>
           <AttentionChart data={watchtime} />
         </motion.div>
 
-        {/* Concept evolution tables */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <motion.div variants={staggerItem} className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <motion.div
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3, duration: 0.5 }}
-            className="rounded-xl border p-5"
-            style={{
-              background:
-                'linear-gradient(135deg, rgba(12, 12, 20, 0.6), rgba(10, 10, 18, 0.4))',
-              borderColor: 'rgba(0, 255, 213, 0.06)',
-            }}
+            className="rounded-2xl border p-5 sm:p-6 glass-frosted"
+            style={{ borderColor: 'rgba(78, 119, 84, 0.28)' }}
           >
-            <h3 className="font-display text-xs tracking-[0.15em] text-value uppercase mb-4">
-              Value Concepts — Growing
+            <h3 className="font-body text-xs tracking-wide text-value uppercase mb-4 font-medium">
+              Value concepts — growing
             </h3>
             <div className="space-y-2.5">
               {valueEvolution.map((item) => (
@@ -166,18 +262,11 @@ export default function Analytics() {
           </motion.div>
 
           <motion.div
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.5 }}
-            className="rounded-xl border p-5"
-            style={{
-              background:
-                'linear-gradient(135deg, rgba(12, 12, 20, 0.6), rgba(10, 10, 18, 0.4))',
-              borderColor: 'rgba(255, 46, 46, 0.06)',
-            }}
+            className="rounded-2xl border p-5 sm:p-6 glass-frosted"
+            style={{ borderColor: 'rgba(168, 96, 99, 0.3)' }}
           >
-            <h3 className="font-display text-xs tracking-[0.15em] text-toxic uppercase mb-4">
-              Toxic Patterns — Declining
+            <h3 className="font-body text-xs tracking-wide text-toxic uppercase mb-4 font-medium">
+              Toxic patterns — declining
             </h3>
             <div className="space-y-2.5">
               {toxicEvolution.map((item) => (
@@ -192,47 +281,79 @@ export default function Analytics() {
               ))}
             </div>
           </motion.div>
-        </div>
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
 function MetricCard({
   label,
-  value,
-  delta,
-  positive,
+  accent,
+  countValue,
+  suffix,
+  deltaText,
+  deltaHint = ' over 30d',
+  trend,
 }: {
   label: string;
-  value: string;
-  delta: string;
-  positive: boolean;
+  accent: 'green' | 'rose' | 'synapse';
+  countValue: number;
+  suffix: string;
+  deltaText: string;
+  deltaHint?: string;
+  trend: { direction: 'up' | 'down'; good: boolean } | null;
 }) {
+  const n = useCountUp(countValue, 950);
+  const accentColor =
+    accent === 'green' ? GREEN : accent === 'rose' ? ROSE : '#6b6560';
+  const accentSoft =
+    accent === 'green'
+      ? 'rgba(78, 119, 84, 0.16)'
+      : accent === 'rose'
+        ? 'rgba(168, 96, 99, 0.14)'
+        : 'rgba(107, 101, 96, 0.1)';
+
   return (
-    <div
-      className="rounded-xl border p-4"
+    <motion.div
+      className="rounded-2xl border p-4 sm:p-5 relative overflow-hidden group"
       style={{
-        background:
-          'linear-gradient(135deg, rgba(12, 12, 20, 0.6), rgba(10, 10, 18, 0.4))',
-        borderColor: 'rgba(255, 255, 255, 0.04)',
+        borderColor: 'rgba(44, 38, 31, 0.1)',
+        borderLeftWidth: 4,
+        borderLeftColor: accentColor,
+        background: `linear-gradient(145deg, ${accentSoft} 0%, rgba(253, 250, 246, 0.75) 42%, rgba(255, 255, 255, 0.35) 100%)`,
+        boxShadow: '0 2px 8px rgba(44, 38, 31, 0.05)',
       }}
+      whileHover={{ scale: 1.02 }}
+      transition={{ type: 'spring', stiffness: 380, damping: 22 }}
     >
-      <p className="font-display text-[9px] tracking-[0.15em] text-text-dim uppercase mb-2">
+      <p className="font-body text-[10px] tracking-wide text-text-dim uppercase mb-2 relative z-[1]">
         {label}
       </p>
-      <p className="font-display text-2xl text-text-primary tabular-nums">
-        {value}
+      <p className="font-body text-2xl sm:text-[1.65rem] text-text-primary tabular-nums font-semibold relative z-[1]">
+        {n}
+        {suffix}
       </p>
-      {delta && (
+      {deltaText && trend && (
         <p
-          className="font-display text-xs mt-1 tabular-nums"
-          style={{ color: positive ? '#00ffd5' : '#ff2e2e' }}
+          className="font-body text-xs mt-2 tabular-nums flex items-center gap-1 relative z-[1]"
+          style={{ color: trend.good ? GREEN : ROSE }}
         >
-          {delta} over 30d
+          <span aria-hidden className="text-[11px] font-semibold">
+            {trend.direction === 'up' ? '↑' : '↓'}
+          </span>
+          <span>
+            {deltaText}
+            {deltaHint}
+          </span>
         </p>
       )}
-    </div>
+      {deltaText && !trend && (
+        <p className="font-body text-xs mt-2 text-text-muted tabular-nums relative z-[1]">
+          Session total
+        </p>
+      )}
+    </motion.div>
   );
 }
 
@@ -249,15 +370,15 @@ function ConceptRow({
   delta: number;
   color: 'value' | 'toxic';
 }) {
-  const barColor = color === 'value' ? '#00ffd5' : '#ff2e2e';
-  const isGrowth = delta > 0;
+  const barColor = color === 'value' ? GREEN : ROSE;
+  const deltaPositive = color === 'value' ? delta > 0 : delta < 0;
 
   return (
     <div className="flex items-center gap-3">
       <span className="text-xs text-text-muted w-32 truncate shrink-0">
         {name}
       </span>
-      <div className="flex-1 h-1 rounded-full bg-white/[0.04] overflow-hidden relative">
+      <div className="flex-1 h-1 rounded-full bg-stone-400/30 overflow-hidden relative">
         <div
           className="absolute inset-y-0 left-0 rounded-full opacity-20"
           style={{ width: `${before}%`, background: barColor }}
@@ -267,12 +388,12 @@ function ConceptRow({
           style={{ background: barColor }}
           initial={{ width: `${before}%` }}
           animate={{ width: `${after}%` }}
-          transition={{ duration: 1, delay: 0.5, ease: 'easeOut' }}
+          transition={{ duration: 1, delay: 0.4, ease: 'easeOut' }}
         />
       </div>
       <span
-        className="font-display text-[10px] tabular-nums w-10 text-right shrink-0"
-        style={{ color: isGrowth ? '#00ffd5' : '#ff2e2e' }}
+        className="font-body text-[10px] tabular-nums w-10 text-right shrink-0 font-medium"
+        style={{ color: deltaPositive ? GREEN : ROSE }}
       >
         {delta > 0 ? '+' : ''}
         {delta}%

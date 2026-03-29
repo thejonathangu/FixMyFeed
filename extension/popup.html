@@ -1,214 +1,191 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      width: 380px;
-      background: #0a0a0a;
-      color: #e0e0e0;
-      font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+      width: 340px;
+      background: #fafafa;
+      color: #1a1a1a;
+      font-family: "Inter", system-ui, -apple-system, sans-serif;
       font-size: 13px;
-      padding: 20px;
+      font-weight: 400;
+      line-height: 1.45;
+      padding: 16px 16px 18px;
+      -webkit-font-smoothing: antialiased;
     }
     h1 {
-      font-size: 16px;
-      color: #39ff14;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      margin-bottom: 6px;
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: #111;
+      margin-bottom: 2px;
     }
     .subtitle {
-      font-size: 11px;
-      color: #555;
-      margin-bottom: 20px;
-      letter-spacing: 1px;
-    }
-    .section {
+      font-size: 12px;
+      color: #737373;
       margin-bottom: 18px;
+      font-weight: 400;
     }
+    .section { margin-bottom: 16px; }
     .section-header {
       display: flex;
       align-items: center;
-      gap: 8px;
-      margin-bottom: 10px;
+      gap: 6px;
+      margin-bottom: 8px;
     }
-    .section-header .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-    }
-    .dot-green { background: #39ff14; }
-    .dot-red { background: #ff3939; }
     label {
-      font-size: 12px;
-      color: #aaa;
+      font-size: 11px;
+      font-weight: 500;
+      color: #525252;
       text-transform: uppercase;
-      letter-spacing: 1px;
+      letter-spacing: 0.06em;
     }
     .tag-container {
       display: flex;
       flex-wrap: wrap;
       gap: 6px;
-      margin-bottom: 10px;
-      min-height: 28px;
+      margin-bottom: 8px;
+      min-height: 26px;
     }
     .tag {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 4px 10px;
-      border-radius: 4px;
+      padding: 4px 9px;
+      border-radius: 6px;
       font-size: 12px;
-      font-family: inherit;
+      font-weight: 500;
+      border: 1px solid transparent;
     }
     .tag-interest {
-      background: rgba(57, 255, 20, 0.12);
-      border: 1px solid rgba(57, 255, 20, 0.3);
-      color: #39ff14;
+      background: #f0f0f0;
+      border-color: #e5e5e5;
+      color: #262626;
     }
     .tag-toxic {
-      background: rgba(255, 57, 57, 0.12);
-      border: 1px solid rgba(255, 57, 57, 0.3);
-      color: #ff3939;
+      background: #f5f5f5;
+      border-color: #e5e5e5;
+      color: #404040;
     }
+    .tag-interest { border-left: 3px solid #a3a3a3; }
+    .tag-toxic { border-left: 3px solid #d4d4d4; }
     .tag button {
       background: none;
       border: none;
-      color: inherit;
+      color: #737373;
       cursor: pointer;
       font-size: 14px;
       line-height: 1;
-      opacity: 0.6;
-      padding: 0;
+      padding: 0 0 0 2px;
     }
-    .tag button:hover {
-      opacity: 1;
-    }
-    .input-row {
-      display: flex;
-      gap: 6px;
-    }
+    .tag button:hover { color: #171717; }
+    .input-row { display: flex; gap: 6px; }
     input {
       flex: 1;
-      background: #141414;
-      border: 1px solid #2a2a2a;
-      color: #e0e0e0;
+      background: #fff;
+      border: 1px solid #e5e5e5;
+      color: #171717;
       padding: 8px 10px;
-      border-radius: 4px;
+      border-radius: 6px;
       font-family: inherit;
       font-size: 12px;
       outline: none;
     }
-    input:focus {
-      border-color: #39ff14;
-    }
-    input.toxic-input:focus {
-      border-color: #ff3939;
-    }
+    input::placeholder { color: #a3a3a3; }
+    input:focus { border-color: #a3a3a3; }
     .btn {
-      padding: 8px 14px;
-      border: none;
-      border-radius: 4px;
+      padding: 8px 12px;
+      border: 1px solid #e5e5e5;
+      border-radius: 6px;
       font-family: inherit;
       font-size: 12px;
+      font-weight: 500;
       cursor: pointer;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      font-weight: bold;
+      background: #fff;
+      color: #262626;
     }
-    .btn-green {
-      background: #39ff14;
-      color: #0a0a0a;
-    }
-    .btn-green:hover {
-      background: #2ecc0f;
-    }
-    .btn-red {
-      background: #ff3939;
-      color: #0a0a0a;
-    }
-    .btn-red:hover {
-      background: #e02e2e;
-    }
+    .btn:hover { background: #f5f5f5; border-color: #d4d4d4; }
+    .btn-add-interest { min-width: 36px; }
+    .btn-add-toxic { min-width: 36px; }
     .status {
       font-size: 11px;
-      color: #555;
-      margin-top: 14px;
+      color: #a3a3a3;
+      margin-top: 12px;
       text-align: center;
       min-height: 16px;
-      transition: color 0.2s;
     }
-    .status.ok {
-      color: #39ff14;
-    }
-    .status.err {
-      color: #ff3939;
-    }
+    .status.ok { color: #525252; }
+    .status.err { color: #737373; }
     .divider {
       border: none;
-      border-top: 1px solid #1a1a1a;
-      margin: 16px 0;
+      border-top: 1px solid #e5e5e5;
+      margin: 14px 0;
     }
     .toggle-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 8px 0;
+      padding: 4px 0;
     }
-    .toggle-label {
-      font-size: 12px;
-      color: #aaa;
-    }
-    .toggle {
-      position: relative;
-      width: 44px;
-      height: 24px;
-    }
-    .toggle input {
-      opacity: 0;
-      width: 0;
-      height: 0;
-    }
+    .toggle-label { font-size: 12px; color: #404040; }
+    .toggle { position: relative; width: 40px; height: 22px; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
     .toggle-slider {
       position: absolute;
       cursor: pointer;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: #2a2a2a;
-      border-radius: 24px;
+      inset: 0;
+      background: #e5e5e5;
+      border-radius: 22px;
       transition: 0.2s;
     }
     .toggle-slider:before {
       position: absolute;
       content: "";
-      height: 18px;
-      width: 18px;
+      height: 16px;
+      width: 16px;
       left: 3px;
       bottom: 3px;
-      background: #666;
+      background: #fff;
       border-radius: 50%;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.08);
       transition: 0.2s;
     }
-    .toggle input:checked + .toggle-slider {
-      background: rgba(57, 255, 20, 0.3);
-    }
+    .toggle input:checked + .toggle-slider { background: #d4d4d4; }
     .toggle input:checked + .toggle-slider:before {
-      transform: translateX(20px);
-      background: #39ff14;
+      transform: translateX(18px);
+    }
+    .color-credits-hint {
+      display: none;
+      margin: 0 0 14px;
+      padding: 10px 12px;
+      background: #f0f0f0;
+      border: 1px solid #e5e5e5;
+      border-radius: 8px;
+      font-size: 11px;
+      line-height: 1.5;
+      color: #525252;
+      text-align: left;
+    }
+    .color-credits-hint strong {
+      display: block;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #737373;
+      margin-bottom: 6px;
     }
   </style>
 </head>
 <body>
-  <h1>Shadow-Scroll</h1>
-  <p class="subtitle">anti-algorithmic filter</p>
+  <h1>FixMyFeed</h1>
+  <p class="subtitle">Feed preferences</p>
 
   <div id="lock-banner" style="display:none;background:rgba(255,107,53,0.1);border:1px solid rgba(255,107,53,0.3);border-radius:6px;padding:8px 12px;margin-bottom:14px;text-align:center;">
     <span style="color:#ff6b35;font-size:11px;letter-spacing:1px;text-transform:uppercase;">🔒 Parental lock active — settings controlled by parent</span>
@@ -216,13 +193,12 @@
 
   <div class="section">
     <div class="section-header">
-      <span class="dot dot-green"></span>
-      <label>Interests (+10 each)</label>
+      <label>Interests</label>
     </div>
     <div class="tag-container" id="interest-tags"></div>
     <div class="input-row">
-      <input type="text" id="interest-input" placeholder="add interest...">
-      <button class="btn btn-green" id="interest-add">+</button>
+      <input type="text" id="interest-input" placeholder="Add interest…" autocomplete="off">
+      <button type="button" class="btn btn-add-interest" id="interest-add" aria-label="Add interest">+</button>
     </div>
   </div>
 
@@ -230,13 +206,12 @@
 
   <div class="section">
     <div class="section-header">
-      <span class="dot dot-red"></span>
-      <label>Toxic keywords (-5 each)</label>
+      <label>Filter keywords</label>
     </div>
     <div class="tag-container" id="toxic-tags"></div>
     <div class="input-row">
-      <input type="text" id="toxic-input" class="toxic-input" placeholder="add toxic keyword...">
-      <button class="btn btn-red" id="toxic-add">+</button>
+      <input type="text" id="toxic-input" placeholder="Add keyword…" autocomplete="off">
+      <button type="button" class="btn btn-add-toxic" id="toxic-add" aria-label="Add keyword">+</button>
     </div>
   </div>
 
@@ -244,7 +219,7 @@
 
   <div class="section">
     <div class="toggle-row">
-      <span class="toggle-label">Auto-like matching content</span>
+      <span class="toggle-label">Auto-like matches</span>
       <label class="toggle">
         <input type="checkbox" id="autolike-toggle">
         <span class="toggle-slider"></span>
@@ -256,9 +231,19 @@
 
   <hr class="divider">
 
+  <div id="color-credits-hint" class="color-credits-hint" role="status">
+    <strong>Grayscale feed</strong>
+    Wondering why everything's black and white? You've used all your color credits, and it takes 1 hour to reset. Fall in love with the colors of the REAL world! 
+    <br> - The FixMyFeed Team
+  </div>
+
   <div style="text-align:center;padding:4px 0 2px;">
     <span style="font-size:10px;color:#333;letter-spacing:1px;text-transform:uppercase;">User ID</span><br>
     <span id="user-id-display" style="font-size:10px;color:#444;font-family:inherit;word-break:break-all;"></span>
+  </div>
+  <div class="input-row" style="margin-top:8px;">
+    <input type="text" id="user-id-input" placeholder="Set custom user id (e.g. jhtl99)" autocomplete="off">
+    <button type="button" class="btn" id="user-id-save">Save</button>
   </div>
 
   <script src="popup.js"></script>

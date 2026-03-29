@@ -11,6 +11,9 @@ const toxicAdd = document.getElementById("toxic-add");
 const statusEl = document.getElementById("status");
 const autolikeToggle = document.getElementById("autolike-toggle");
 const lockBanner = document.getElementById("lock-banner");
+const userIdDisplayEl = document.getElementById("user-id-display");
+const userIdInput = document.getElementById("user-id-input");
+const userIdSave = document.getElementById("user-id-save");
 
 function showStatus(msg, ok) {
   statusEl.textContent = msg;
@@ -116,7 +119,58 @@ chrome.runtime.sendMessage({ type: "syncSettings" }, function() {
 // Show user_id at the bottom so parents can find it for the dashboard
 chrome.storage.local.get(["user_id"], function(data) {
   if (data.user_id) {
-    var el = document.getElementById("user-id-display");
-    if (el) el.textContent = data.user_id;
+    if (userIdDisplayEl) userIdDisplayEl.textContent = data.user_id;
+    if (userIdInput) userIdInput.value = data.user_id;
   }
 });
+
+function saveUserId() {
+  if (!userIdInput) return;
+  var next = userIdInput.value.trim();
+  if (!next) {
+    showStatus("enter a user id", false);
+    return;
+  }
+  chrome.runtime.sendMessage({ type: "setUserId", user_id: next }, function(response) {
+    if (chrome.runtime.lastError) {
+      showStatus("failed to save user id", false);
+      return;
+    }
+    if (!response || !response.success) {
+      showStatus(response && response.error ? response.error : "invalid user id", false);
+      return;
+    }
+    var saved = response.data && response.data.user_id ? response.data.user_id : next;
+    if (userIdDisplayEl) userIdDisplayEl.textContent = saved;
+    if (userIdInput) userIdInput.value = saved;
+    showStatus("user id updated", true);
+  });
+}
+
+if (userIdSave) userIdSave.addEventListener("click", saveUserId);
+if (userIdInput) {
+  userIdInput.addEventListener("keydown", function(e) {
+    if (e.key === "Enter") saveUserId();
+  });
+}
+
+(function refreshColorCreditsHint() {
+  var hint = document.getElementById("color-credits-hint");
+  if (!hint) return;
+  chrome.runtime.sendMessage({ action: "get_color_credit_status" }, function(response) {
+    if (chrome.runtime.lastError) {
+      hint.style.display = "none";
+      return;
+    }
+    var out =
+      response &&
+      response.success &&
+      response.data &&
+      typeof response.data.remaining_credits === "number";
+    if (out && response.data.remaining_credits === 0) {
+      hint.style.display = "block";
+    } else {
+      hint.style.display = "none";
+    }
+  });
+})();

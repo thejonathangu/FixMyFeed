@@ -1,8 +1,22 @@
 const isIg = window.location.hostname.includes("instagram.com");
 const isTikTok = window.location.hostname.includes("tiktok.com");
 const CREDIT_REFRESH_MS = 30000;
-var latestCreditStatus = null;
 
+/** Instagram: only the /reels tab — not feed, explore, profiles, DMs, etc. */
+function isInstagramReelsUrl() {
+  if (!isIg) return false;
+  var p = window.location.pathname || "";
+  return p === "/reels" || p.startsWith("/reels/");
+}
+var latestCreditStatus = null;
+var FIXMYFEED_FONT =
+  'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
+
+function ensureFixMyFeedUiFont() {
+  // No-op: host page CSP (e.g. Instagram) can block remote stylesheets.
+  // Keep UI resilient by relying on local/system font stacks only.
+  return;
+}
 
 // ---------------------------------------------------------------------------
 // Watch tracking - tracks current video being watched for duration logging
@@ -12,12 +26,21 @@ var currentWatch = null;
 function logCurrentWatch() {
   if (currentWatch && currentWatch.action !== "SKIP") {
     var duration = Date.now() - currentWatch.startTime;
+    console.log("[Shadow-Scroll] Logging watch:", currentWatch.action, duration + "ms");
     chrome.runtime.sendMessage({
       type: "log_watch",
       action_type: currentWatch.action,
       duration_ms: duration,
-      text_content: currentWatch.textContent
-    }, function() { if (chrome.runtime.lastError) {} });
+      text_content: currentWatch.textContent,
+      category_vector: currentWatch.categoryVector || null,
+      deep_analysis: currentWatch.deepAnalysis || null
+    }, function(response) { 
+      if (chrome.runtime.lastError) {
+        console.log("[Shadow-Scroll] log_watch error:", chrome.runtime.lastError.message);
+      } else {
+        console.log("[Shadow-Scroll] log_watch response:", response);
+      }
+    });
     if (currentWatch.dashboard && currentWatch.dashboard.parentNode) {
       currentWatch.dashboard.remove();
     }
@@ -37,63 +60,79 @@ function applyCreditFilter(creditStatus) {
 }
 
 function formatCreditLine(creditStatus) {
-  if (!creditStatus) return "🎨 Color credits: --/30 (1h)";
-  return "🎨 Color credits: " + creditStatus.remaining_credits + "/" + creditStatus.max_credits + " (1h)";
+  if (!creditStatus) return "Color credits: -- / 30 (1h)";
+  return (
+    "Color credits: " +
+    creditStatus.remaining_credits +
+    " / " +
+    creditStatus.max_credits +
+    " (1h)"
+  );
 }
 
 function updateDashboardCredits(dashboard, creditStatus) {
   if (!dashboard || !dashboard.parentNode) return;
   const baseLabel = dashboard.getAttribute("data-base-label") || "";
-  dashboard.setAttribute("data-base-label", baseLabel.split("\n🎨 Color credits:")[0] + "\n" + formatCreditLine(creditStatus));
+  var noLegacy = baseLabel.replace(/\n🎨 Color credits:[^\n]*/g, "");
+  var prefix = noLegacy.split("\nColor credits:")[0].trim();
+  dashboard.setAttribute("data-base-label", prefix + "\n" + formatCreditLine(creditStatus));
   dashboard.textContent = dashboard.getAttribute("data-base-label");
 }
 
-function normalizeCategoryVector(action, arr) {
-  var out = [];
-  if (Array.isArray(arr)) {
-    for (var i = 0; i < arr.length && out.length < 3; i++) {
-      var s = String(arr[i] == null ? "" : arr[i]).trim().slice(0, 30);
-      if (s) out.push(s);
+function isExtensionContextInvalidatedError(message) {
+  if (!message) return false;
+  return String(message).toLowerCase().indexOf("extension context invalidated") !== -1;
+}
+
+/**
+ * Runtime messaging can fail on first page load while MV3 service worker wakes.
+ * Retry briefly so direct landings on /reels are resilient.
+ */
+function sendRuntimeMessageWithRetry(message, options) {
+  options = options || {};
+  var attemptsLeft = typeof options.attempts === "number" ? options.attempts : 4;
+  var retryDelayMs = typeof options.retryDelayMs === "number" ? options.retryDelayMs : 220;
+  var label = options.label || "runtime message";
+
+  return new Promise(function(resolve) {
+    function attempt() {
+      chrome.runtime.sendMessage(message, function(response) {
+        if (!chrome.runtime.lastError && response && response.success) {
+          resolve(response.data);
+          return;
+        }
+        if (chrome.runtime.lastError && isExtensionContextInvalidatedError(chrome.runtime.lastError.message)) {
+          if (typeof options.onInvalidated === "function") options.onInvalidated();
+          resolve(null);
+          return;
+        }
+        attemptsLeft--;
+        if (attemptsLeft > 0) {
+          setTimeout(attempt, retryDelayMs);
+          return;
+        }
+        if (chrome.runtime.lastError) {
+          console.log("[Shadow-Scroll] " + label + ":", chrome.runtime.lastError.message);
+        }
+        resolve(null);
+      });
     }
-  }
-  if (out.length) return out;
-  if (action === "WAIT") return ["uncategorized", "neutral"];
-  if (action === "LIKE_AND_STAY") return ["aligned", "interest_match"];
-  return [];
+    attempt();
+  });
 }
 
 function getColorCreditStatus() {
-  return new Promise(function(resolve) {
-    chrome.runtime.sendMessage({ action: "get_color_credit_status" }, function(response) {
-      if (chrome.runtime.lastError) {
-        console.log("[Shadow-Scroll] Color credits:", chrome.runtime.lastError.message);
-        resolve(null);
-        return;
-      }
-      if (!response || !response.success) {
-        resolve(null);
-        return;
-      }
-      resolve(response.data);
-    });
-  });
+  return sendRuntimeMessageWithRetry(
+    { action: "get_color_credit_status" },
+    { label: "Color credits", attempts: 5, retryDelayMs: 260 }
+  );
 }
 
 function consumeColorCredit(videoData) {
-  return new Promise(function(resolve) {
-    chrome.runtime.sendMessage({ action: "consume_color_credit", data: videoData || {} }, function(response) {
-      if (chrome.runtime.lastError) {
-        console.log("[Shadow-Scroll] consumeColorCredit:", chrome.runtime.lastError.message);
-        resolve(null);
-        return;
-      }
-      if (!response || !response.success) {
-        resolve(null);
-        return;
-      }
-      resolve(response.data);
-    });
-  });
+  return sendRuntimeMessageWithRetry(
+    { action: "consume_color_credit", data: videoData || {} },
+    { label: "consumeColorCredit", attempts: 5, retryDelayMs: 260 }
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -124,12 +163,13 @@ function lockScroll(seconds, dashboard) {
 
   function updateCountdown() {
     if (remaining > 0 && dashboard && dashboard.parentNode) {
-      dashboard.textContent = dashboard.getAttribute("data-base-label") + "\n🔒 SCROLL LOCKED: " + remaining + "s";
+      dashboard.textContent =
+        dashboard.getAttribute("data-base-label") + "\nScroll locked: " + remaining + "s";
       remaining--;
       lockTimeout = setTimeout(updateCountdown, 1000);
     } else {
       if (dashboard && dashboard.parentNode) {
-        dashboard.textContent = dashboard.getAttribute("data-base-label") + "\n✓ Scroll unlocked";
+        dashboard.textContent = dashboard.getAttribute("data-base-label") + "\nScroll unlocked";
       }
     }
   }
@@ -168,6 +208,10 @@ window.addEventListener("keydown", preventKeyScroll, { capture: true });
 // ---------------------------------------------------------------------------
 // Scroll to next — platform aware (Instagram vs TikTok)
 // ---------------------------------------------------------------------------
+/** Minimum time between automated scrolls so the feed / DOM can catch up */
+var lastAutoScrollAt = 0;
+var MIN_AUTO_SCROLL_GAP_MS = 920;
+
 function scrollToNext(container) {
   if (scrollLocked) return;
 
@@ -193,6 +237,7 @@ function scrollToNext(container) {
     
     // Try keyboard navigation (Instagram supports arrow keys)
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', keyCode: 40, bubbles: true }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageDown', keyCode: 34, bubbles: true }));
     
     // Fallback: scroll to the next video element
     var all = Array.from(document.querySelectorAll('video'));
@@ -216,6 +261,24 @@ function scrollToNext(container) {
       window.scrollBy({ top: window.innerHeight, behavior: "smooth" });
     }
   }
+}
+
+/** SKIP bursts often need the Next control to paint; retries + minimum gap reduce stuck overlay */
+function scrollToNextReliable(container) {
+  if (scrollLocked) return;
+  var wait = Math.max(0, MIN_AUTO_SCROLL_GAP_MS - (Date.now() - lastAutoScrollAt));
+  function burst() {
+    lastAutoScrollAt = Date.now();
+    scrollToNext(container);
+    setTimeout(function () {
+      scrollToNext(container);
+    }, 520);
+    setTimeout(function () {
+      scrollToNext(container);
+    }, 1180);
+  }
+  if (wait > 0) setTimeout(burst, wait);
+  else burst();
 }
 
 function findPrimaryVideo(container) {
@@ -294,27 +357,186 @@ function scrapeVideoData(container) {
   };
 }
 // ---------------------------------------------------------------------------
-// Loading overlay (from upstream)
+// Loading overlay — full-screen until LIKE_AND_STAY; right column shows quotes
 // ---------------------------------------------------------------------------
-function createLoadingOverlay() {
+var evalBlockingOverlay = null;
+var quotesListPromise = null;
+var blockerQuoteRotateId = null;
+var BLOCKER_QUOTE_ROTATE_MS = 5000;
+
+function parseQuotesCsv(text) {
+  var out = [];
+  var lines = text.split(/\r?\n/);
+  for (var li = 1; li < lines.length; li++) {
+    var line = lines[li];
+    if (!line || !line.trim()) continue;
+    var comma = line.indexOf(",");
+    if (comma < 0) continue;
+    var rest = line.slice(comma + 1);
+    if (rest.charAt(0) !== '"') continue;
+    var q = "";
+    var i = 1;
+    while (i < rest.length) {
+      if (rest.charAt(i) === '"' && rest.charAt(i + 1) === '"') {
+        q += '"';
+        i += 2;
+        continue;
+      }
+      if (rest.charAt(i) === '"') {
+        i++;
+        break;
+      }
+      q += rest.charAt(i);
+      i++;
+    }
+    if (i >= rest.length || rest.charAt(i) !== ",") continue;
+    i++;
+    if (rest.charAt(i) !== '"') continue;
+    i++;
+    var author = "";
+    while (i < rest.length) {
+      if (rest.charAt(i) === '"' && rest.charAt(i + 1) === '"') {
+        author += '"';
+        i += 2;
+        continue;
+      }
+      if (rest.charAt(i) === '"') break;
+      author += rest.charAt(i);
+      i++;
+    }
+    out.push({ quote: q.trim(), author: author.trim() });
+  }
+  return out;
+}
+
+function getQuotesList() {
+  if (!quotesListPromise) {
+    quotesListPromise = fetch(chrome.runtime.getURL("assets/quotes.csv"))
+      .then(function (res) {
+        return res.text();
+      })
+      .then(parseQuotesCsv)
+      .catch(function () {
+        return [];
+      });
+  }
+  return quotesListPromise;
+}
+
+function ensureHandwrittenQuoteFont() {
+  // No-op for the same CSP reason as above.
+  return;
+}
+
+function clearBlockerQuoteTimer() {
+  if (blockerQuoteRotateId !== null) {
+    clearInterval(blockerQuoteRotateId);
+    blockerQuoteRotateId = null;
+  }
+}
+
+function updateRandomBlockerQuote(overlay) {
+  var quoteBody = overlay.querySelector("[data-fmf-quote-body]");
+  var quoteAuthor = overlay.querySelector("[data-fmf-quote-author]");
+  if (!quoteBody || !quoteAuthor) return;
+  getQuotesList().then(function (list) {
+    if (!evalBlockingOverlay || evalBlockingOverlay !== overlay) return;
+    var pick =
+      list.length > 0
+        ? list[Math.floor(Math.random() * list.length)]
+        : { quote: "Fall in love with your world.", author: "" };
+    quoteBody.textContent = pick.quote;
+    quoteAuthor.textContent = pick.author ? "— " + pick.author : "";
+  });
+}
+
+function armBlockerQuoteDisplay(overlay) {
+  ensureHandwrittenQuoteFont();
+  var quoteCol = overlay.querySelector("[data-fmf-quote-col]");
+  var quoteBody = overlay.querySelector("[data-fmf-quote-body]");
+  var quoteAuthor = overlay.querySelector("[data-fmf-quote-author]");
+  if (!quoteCol || !quoteBody || !quoteAuthor) return;
+
+  quoteCol.style.transition = "opacity 0.35s ease";
+  quoteCol.style.opacity = "1";
+  quoteCol.style.visibility = "visible";
+  quoteBody.textContent = "…";
+  quoteAuthor.textContent = "";
+  updateRandomBlockerQuote(overlay);
+
+  clearBlockerQuoteTimer();
+  blockerQuoteRotateId = setInterval(function () {
+    if (!evalBlockingOverlay || !evalBlockingOverlay.parentNode) {
+      clearBlockerQuoteTimer();
+      return;
+    }
+    updateRandomBlockerQuote(overlay);
+  }, BLOCKER_QUOTE_ROTATE_MS);
+}
+
+function removeEvalBlockingOverlay() {
+  clearBlockerQuoteTimer();
+  if (evalBlockingOverlay && evalBlockingOverlay.parentNode) {
+    evalBlockingOverlay.remove();
+  }
+  evalBlockingOverlay = null;
+}
+
+function ensureEvalBlockingOverlay() {
+  if (evalBlockingOverlay && evalBlockingOverlay.parentNode) {
+    return evalBlockingOverlay;
+  }
+  ensureFixMyFeedUiFont();
   var overlay = document.createElement("div");
-  overlay.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2147483646;";
+  overlay.style.cssText =
+    "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:2147483646;";
+
+  var centerLoader = document.createElement("div");
+  centerLoader.style.cssText =
+    "position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;z-index:2;";
 
   var spinner = document.createElement("div");
-  spinner.style.cssText = "width:60px;height:60px;border:4px solid #222;border-top:4px solid #39ff14;border-radius:50%;animation:shadowspin 0.8s linear infinite;";
+  spinner.style.cssText =
+    "width:64px;height:64px;border:4px solid #333;border-top-color:#fff;border-radius:50%;animation:shadowspin 0.8s linear infinite;";
 
   var text = document.createElement("div");
-  text.style.cssText = "color:#39ff14;font-family:monospace;font-size:16px;margin-top:20px;";
-  text.textContent = "AI evaluating content...";
+  text.style.cssText =
+    "color:#f5f5f5;font-family:" +
+    FIXMYFEED_FONT +
+    ";font-size:20px;font-weight:500;margin-top:28px;letter-spacing:0.02em;text-align:center;";
+  text.textContent = "Evaluating content...";
+
+  var rightCol = document.createElement("div");
+  rightCol.setAttribute("data-fmf-quote-col", "1");
+  rightCol.style.cssText =
+    'position:absolute;top:0;right:0;width:33.333vw;max-width:520px;min-width:260px;height:100%;display:flex;flex-direction:column;justify-content:center;min-width:0;padding:28px 24px 28px 16px;border-left:1px solid rgba(255,255,255,0.12);font-family:"Chalkboard SE","Chalkboard","Marker Felt","Bradley Hand","Noteworthy","Segoe Print","Comic Sans MS",cursive;font-weight:600;color:#f5f5f5;z-index:1;';
+
+  var quoteBody = document.createElement("div");
+  quoteBody.setAttribute("data-fmf-quote-body", "1");
+  quoteBody.style.cssText =
+    'font-family:"Chalkboard SE","Chalkboard","Marker Felt","Bradley Hand","Noteworthy","Segoe Print","Comic Sans MS",cursive;font-style:normal;font-size:clamp(26px,3.8vw,42px);line-height:1.22;letter-spacing:0.01em;text-shadow:0 1px 1px rgba(0,0,0,0.35), 0 0 2px rgba(255,255,255,0.05);';
+
+  var quoteAuthor = document.createElement("div");
+  quoteAuthor.setAttribute("data-fmf-quote-author", "1");
+  quoteAuthor.style.cssText =
+    'font-family:"Chalkboard SE","Chalkboard","Marker Felt","Bradley Hand","Noteworthy","Segoe Print","Comic Sans MS",cursive;margin-top:20px;font-size:clamp(20px,2.8vw,30px);font-weight:400;opacity:0.9;';
+
+  rightCol.appendChild(quoteBody);
+  rightCol.appendChild(quoteAuthor);
 
   var style = document.createElement("style");
-  style.textContent = "@keyframes shadowspin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}";
+  style.textContent =
+    "@keyframes shadowspin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}";
+
+  centerLoader.appendChild(spinner);
+  centerLoader.appendChild(text);
 
   overlay.appendChild(style);
-  overlay.appendChild(spinner);
-  overlay.appendChild(text);
+  overlay.appendChild(centerLoader);
+  overlay.appendChild(rightCol);
   document.body.appendChild(overlay);
-
+  evalBlockingOverlay = overlay;
+  armBlockerQuoteDisplay(overlay);
   return overlay;
 }
 
@@ -324,6 +546,8 @@ function createLoadingOverlay() {
 const observer = new IntersectionObserver((entries) => {
   entries.forEach((entry) => {
     if (!entry.isIntersecting) return;
+
+    if (isIg && !isInstagramReelsUrl()) return;
 
     const container = entry.target;
 
@@ -384,20 +608,7 @@ const observer = new IntersectionObserver((entries) => {
         }
       : Object.assign(scrapeVideoData(container), { platform: "tiktok" });
 
-    // Keep candidate logging without consuming color credits.
-    if (!isIg) {
-      chrome.runtime.sendMessage({
-        action: "log_video",
-        data: {
-          action_type: "candidate",
-          caption: videoData.caption,
-          hashtags: videoData.hashtags,
-          creator: videoData.creator,
-          platform: videoData.platform
-        }
-      }, function() { if (chrome.runtime.lastError) {} });
-    }
-    var loadingOverlay = createLoadingOverlay();
+    ensureEvalBlockingOverlay();
     
     // Track start time BEFORE API call
     var videoStartTime = Date.now();
@@ -405,14 +616,23 @@ const observer = new IntersectionObserver((entries) => {
     chrome.runtime.sendMessage(
       { type: "evaluate", text: textContent },
       (response) => {
+        if (chrome.runtime.lastError) {
+          if (isExtensionContextInvalidatedError(chrome.runtime.lastError.message)) {
+            removeEvalBlockingOverlay();
+            scrollToNextReliable(container);
+            return;
+          }
+          removeEvalBlockingOverlay();
+          return;
+        }
         if (!response || !response.success) {
-          if (loadingOverlay && loadingOverlay.parentNode) loadingOverlay.remove();
+          removeEvalBlockingOverlay();
           return;
         }
 
         const action = response.data.action;
-        const score = response.data.score;
-        const delayMs = response.data.delay_ms;
+        const delayMs =
+          typeof response.data.delay_ms === "number" ? response.data.delay_ms : 1100;
 
         if (action === "SKIP") {
           currentWatch = null;
@@ -422,67 +642,43 @@ const observer = new IntersectionObserver((entries) => {
               applyCreditFilter(status);
             }
           });
-          scrollToNext(container);
-          setTimeout(() => {
-            if (loadingOverlay && loadingOverlay.parentNode) loadingOverlay.remove();
-          }, 500);
-          return;
-        }
-
-        if (action === "WAIT") {
-          muteVideoInContainer(container);
-          getColorCreditStatus().then(function(status) {
-            if (status) {
-              latestCreditStatus = status;
-              applyCreditFilter(status);
-            }
-          });
-          var categoryVecWait = normalizeCategoryVector(action, response.data.category_vector);
-          setTimeout(() => {
-            var durationMs = Date.now() - videoStartTime;
-            chrome.runtime.sendMessage({
-              action: "log_video",
-              data: {
-                action_type: action,
-                caption: videoData.caption,
-                hashtags: videoData.hashtags,
-                creator: videoData.creator,
-                platform: videoData.platform,
-                category_vector: categoryVecWait,
-                duration_ms: durationMs
-              }
-            }, function() { if (chrome.runtime.lastError) {} });
-            if (loadingOverlay && loadingOverlay.parentNode) loadingOverlay.remove();
-            scrollToNext(container);
+          setTimeout(function () {
+            scrollToNextReliable(container);
           }, delayMs);
           return;
         }
 
-        if (action !== "LIKE_AND_STAY") {
-          if (loadingOverlay && loadingOverlay.parentNode) loadingOverlay.remove();
+        if (action !== "LIKE_AND_STAY" && action !== "WAIT") {
+          removeEvalBlockingOverlay();
           return;
         }
 
-        if (loadingOverlay && loadingOverlay.parentNode) loadingOverlay.remove();
+        removeEvalBlockingOverlay();
 
+        ensureFixMyFeedUiFont();
         enableSoundInContainer(container);
 
         const dashboard = document.createElement("div");
         dashboard.style.position = "fixed";
-        dashboard.style.top = "10px";
-        dashboard.style.left = "10px";
-        dashboard.style.backgroundColor = "rgba(0, 0, 0, 0.9)";
-        dashboard.style.color = "#39ff14";
-        dashboard.style.fontFamily = "monospace";
-        dashboard.style.fontSize = "14px";
-        dashboard.style.padding = "12px 18px";
+        dashboard.style.top = "12px";
+        dashboard.style.left = "12px";
+        dashboard.style.backgroundColor = "#0a0a0a";
+        dashboard.style.color = "#f5f5f5";
+        dashboard.style.fontFamily = FIXMYFEED_FONT;
+        dashboard.style.fontSize = "16px";
+        dashboard.style.fontWeight = "400";
+        dashboard.style.lineHeight = "1.5";
+        dashboard.style.padding = "18px 22px";
         dashboard.style.zIndex = "2147483647";
-        dashboard.style.borderRadius = "6px";
-        dashboard.style.border = "1px solid #39ff14";
+        dashboard.style.borderRadius = "10px";
+        dashboard.style.border = "1px solid #2a2a2a";
+        dashboard.style.boxShadow = "0 8px 32px rgba(0, 0, 0, 0.45)";
         dashboard.style.pointerEvents = "none";
         dashboard.style.whiteSpace = "pre-line";
+        dashboard.style.maxWidth = "min(94vw, 420px)";
+        dashboard.style.letterSpacing = "0.01em";
 
-        var label = "ACTION: " + action + " | SCORE: " + score;
+        var label = "ACTION: " + action;
         if (response.data.reason) label += "\n" + response.data.reason;
         label += "\n" + formatCreditLine(latestCreditStatus);
         dashboard.setAttribute("data-base-label", label);
@@ -497,26 +693,10 @@ const observer = new IntersectionObserver((entries) => {
           action: action,
           startTime: videoStartTime,
           textContent: textContent,
-          dashboard: dashboard
+          dashboard: dashboard,
+          categoryVector: response.data.category_vector || null,
+          deepAnalysis: response.data.deep_analysis || null
         };
-
-        var categoryVecLike = normalizeCategoryVector(action, response.data.category_vector);
-
-        chrome.runtime.sendMessage({
-          action: "log_video",
-          data: {
-            action_type: action,
-            caption: videoData.caption,
-            hashtags: videoData.hashtags,
-            creator: videoData.creator,
-            platform: videoData.platform,
-            category_vector: categoryVecLike
-          }
-        }, function() {
-          if (chrome.runtime.lastError) {
-            console.log("[Shadow-Scroll] log_video:", chrome.runtime.lastError.message);
-          }
-        });
 
         consumeColorCredit({
           caption: videoData.caption,
@@ -530,7 +710,7 @@ const observer = new IntersectionObserver((entries) => {
             updateDashboardCredits(dashboard, status);
           }
 
-          if (response.data.autolike) {
+          if (action === "LIKE_AND_STAY" && response.data.autolike) {
             if (isIg) {
               let wrapper = container;
               for (let i = 0; i < 6; i++) {
@@ -553,7 +733,9 @@ const observer = new IntersectionObserver((entries) => {
           setTimeout(() => {
             unlockScroll();
             if (dashboard && dashboard.parentNode) {
-              dashboard.textContent = dashboard.getAttribute("data-base-label") + "\n✓ Scroll unlocked - watching...";
+              dashboard.textContent =
+                dashboard.getAttribute("data-base-label") +
+                "\nScroll unlocked. Watching this clip.";
             }
           }, 5000);
         });
@@ -567,12 +749,16 @@ const observer = new IntersectionObserver((entries) => {
 // ---------------------------------------------------------------------------
 setInterval(() => {
   if (isIg) {
+    if (!isInstagramReelsUrl()) {
+      removeEvalBlockingOverlay();
+      return;
+    }
     const videos = document.querySelectorAll('video:not([data-observed])');
     videos.forEach((el) => {
       el.setAttribute("data-observed", "true");
       observer.observe(el);
     });
-    
+
     const reelContainers = document.querySelectorAll('article:not([data-observed]), div[role="dialog"] video:not([data-observed])');
     reelContainers.forEach((el) => {
       if (!el.getAttribute("data-observed")) {
@@ -589,7 +775,7 @@ setInterval(() => {
       observer.observe(el);
     });
   }
-}, 1000);
+}, 1450);
 
 function refreshCreditStatusAndFilter() {
   getColorCreditStatus().then(function(status) {
@@ -602,6 +788,12 @@ function refreshCreditStatusAndFilter() {
 refreshCreditStatusAndFilter();
 setInterval(refreshCreditStatusAndFilter, CREDIT_REFRESH_MS);
 
-if (isIg) {
-  console.log("[Shadow-Scroll] Instagram mode active - watching for reels...");
+if (isIg && isInstagramReelsUrl()) {
+  console.log("[Shadow-Scroll] Instagram Reels tab — evaluation active");
 }
+
+window.addEventListener("popstate", function () {
+  if (isIg && !isInstagramReelsUrl()) removeEvalBlockingOverlay();
+});
+
+

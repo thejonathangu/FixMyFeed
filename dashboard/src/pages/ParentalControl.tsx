@@ -25,12 +25,12 @@ function Tag({
 }) {
   const styles =
     color === 'value'
-      ? { bg: 'rgba(0,255,213,0.07)', border: 'rgba(0,255,213,0.2)', text: '#00ffd5' }
-      : { bg: 'rgba(255,46,46,0.07)', border: 'rgba(255,46,46,0.2)', text: '#ff2e2e' };
+      ? { bg: 'rgba(253,250,246,0.95)', border: 'rgba(44,38,31,0.16)', text: '#2c261f' }
+      : { bg: 'rgba(253,250,246,0.95)', border: 'rgba(44,38,31,0.16)', text: '#2c261f' };
 
   return (
     <span
-      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full font-display text-[11px] tracking-wider"
+      className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full text-sm tracking-wide"
       style={{ background: styles.bg, border: `1px solid ${styles.border}`, color: styles.text }}
     >
       {label}
@@ -59,7 +59,7 @@ function TagInput({
   disabled?: boolean;
 }) {
   const [val, setVal] = useState('');
-  const accent = color === 'value' ? '#00ffd5' : '#ff2e2e';
+  const accent = 'rgba(44,38,31,0.35)';
 
   const submit = () => {
     const trimmed = val.trim().toLowerCase();
@@ -67,26 +67,28 @@ function TagInput({
   };
 
   return (
-    <div className="flex gap-2 mt-3">
+    <div className="flex gap-3 mt-4">
       <input
         value={val}
         onChange={(e) => setVal(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && submit()}
         placeholder={placeholder}
         disabled={disabled}
-        className="flex-1 bg-transparent border rounded-lg px-3 py-2 font-display text-xs text-text-primary outline-none placeholder:text-text-dim transition-colors"
-        style={{
-          borderColor: 'rgba(255,255,255,0.08)',
-          opacity: disabled ? 0.35 : 1,
-        }}
+        className="flex-1 bg-transparent border rounded-lg px-4 py-3 text-sm text-text-primary outline-none placeholder:text-text-dim transition-colors"
+        style={{ borderColor: 'rgba(44,38,31,0.2)', opacity: disabled ? 0.45 : 1 }}
         onFocus={(e) => (e.target.style.borderColor = accent)}
-        onBlur={(e) => (e.target.style.borderColor = 'rgba(255,255,255,0.08)')}
+        onBlur={(e) => (e.target.style.borderColor = 'rgba(44,38,31,0.2)')}
       />
       <button
         onClick={submit}
         disabled={disabled}
-        className="px-4 py-2 rounded-lg font-display text-xs tracking-widest text-void transition-opacity"
-        style={{ background: accent, opacity: disabled ? 0.3 : 1 }}
+        className="px-5 py-3 rounded-lg text-sm tracking-wide border transition-opacity"
+        style={{
+          background: '#f3efe8',
+          borderColor: 'rgba(44,38,31,0.2)',
+          color: '#2c261f',
+          opacity: disabled ? 0.45 : 1
+        }}
       >
         +
       </button>
@@ -118,7 +120,7 @@ function PinInput({
 
   return (
     <div className="flex flex-col items-center gap-3">
-      <p className="font-display text-xs tracking-widest text-text-muted uppercase">{label}</p>
+      <p className="text-sm tracking-wide text-text-muted uppercase">{label}</p>
       <motion.input
         ref={inputRef}
         type="password"
@@ -130,17 +132,22 @@ function PinInput({
         placeholder="••••"
         animate={shake ? { x: [-6, 6, -6, 6, 0] } : {}}
         transition={{ duration: 0.35 }}
-        className="w-28 text-center bg-transparent border rounded-lg px-3 py-2.5 font-display text-xl tracking-[0.4em] text-text-primary outline-none"
-        style={{ borderColor: error ? '#ff2e2e' : 'rgba(255,255,255,0.12)', letterSpacing: '0.4em' }}
+        className="w-36 text-center bg-transparent border rounded-lg px-4 py-3 text-2xl tracking-[0.4em] text-text-primary outline-none"
+        style={{ borderColor: error ? '#d97757' : 'rgba(44,38,31,0.2)', letterSpacing: '0.4em' }}
       />
       {error && (
-        <p className="font-display text-[10px] tracking-widest text-toxic">{error}</p>
+        <p className="text-xs tracking-wide text-text-muted">{error}</p>
       )}
       <button
         onClick={() => pin.length === 4 && onSubmit(pin)}
         disabled={pin.length !== 4}
-        className="px-6 py-2 rounded-lg font-display text-xs tracking-widest text-void transition-opacity"
-        style={{ background: '#1a6bff', opacity: pin.length === 4 ? 1 : 0.3 }}
+        className="px-7 py-3 rounded-lg text-sm tracking-wide border transition-opacity"
+        style={{
+          background: '#f3efe8',
+          borderColor: 'rgba(44,38,31,0.2)',
+          color: '#2c261f',
+          opacity: pin.length === 4 ? 1 : 0.45
+        }}
       >
         Confirm
       </button>
@@ -312,23 +319,22 @@ export default function ParentalControl() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-md"
+          className="w-full max-w-xl"
         >
           <div
-            className="rounded-2xl border p-8 text-center"
+            className="rounded-2xl border p-10 text-center"
             style={{
-              background: 'linear-gradient(135deg, rgba(12,12,20,0.8), rgba(10,10,18,0.6))',
-              borderColor: 'rgba(26,107,255,0.15)',
+              background: 'rgba(253,250,246,0.95)',
+              borderColor: 'rgba(44,38,31,0.14)',
             }}
           >
-            <div className="text-4xl mb-4">🔐</div>
-            <h2 className="font-display text-sm tracking-[0.2em] text-text-primary uppercase mb-2">
+            <h2 className="text-lg tracking-wide text-text-primary uppercase mb-3">
               Parental Control
             </h2>
-            <p className="text-xs text-text-muted mb-6">
+            <p className="text-sm text-text-muted mb-7">
               Enter the User ID from the Shadow-Scroll extension to manage content settings.
             </p>
-            <div className="flex gap-2">
+            <div className="flex gap-3">
               <input
                 value={userIdInput}
                 onChange={(e) => setUserIdInput(e.target.value)}
@@ -339,8 +345,8 @@ export default function ParentalControl() {
                   }
                 }}
                 placeholder="user_abc123..."
-                className="flex-1 bg-transparent border rounded-lg px-3 py-2.5 font-display text-xs text-text-primary outline-none placeholder:text-text-dim"
-                style={{ borderColor: 'rgba(26,107,255,0.3)' }}
+                className="flex-1 bg-transparent border rounded-lg px-4 py-3 text-sm text-text-primary outline-none placeholder:text-text-dim"
+                style={{ borderColor: 'rgba(44,38,31,0.2)' }}
               />
               <button
                 onClick={() => {
@@ -349,13 +355,13 @@ export default function ParentalControl() {
                     loadSettings(userIdInput.trim());
                   }
                 }}
-                className="px-4 py-2 rounded-lg font-display text-xs tracking-widest text-void"
-                style={{ background: '#1a6bff' }}
+                className="px-5 py-3 rounded-lg text-sm tracking-wide border"
+                style={{ background: '#f3efe8', borderColor: 'rgba(44,38,31,0.2)', color: '#2c261f' }}
               >
                 Load
               </button>
             </div>
-            <p className="text-[10px] text-text-dim mt-4">
+            <p className="text-xs text-text-dim mt-4">
               Find your User ID in the extension popup under Settings.
             </p>
           </div>
@@ -371,7 +377,7 @@ export default function ParentalControl() {
           animate={{ rotate: 360 }}
           transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
           className="w-10 h-10 border rounded-full"
-          style={{ borderColor: 'rgba(26,107,255,0.2)', borderTopColor: '#1a6bff' }}
+          style={{ borderColor: 'rgba(44,38,31,0.2)', borderTopColor: '#2c261f' }}
         />
       </div>
     );
@@ -379,24 +385,24 @@ export default function ParentalControl() {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="max-w-3xl mx-auto px-8 py-8 space-y-6">
+      <div className="max-w-4xl mx-auto px-10 py-10 space-y-8">
 
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
           <div className="flex items-center justify-between mb-1">
-            <h2 className="font-display text-xl tracking-[0.1em] text-text-primary uppercase">
+            <h2 className="text-2xl tracking-wide text-text-primary uppercase">
               Parental Control
             </h2>
             <button
               onClick={() => { setUserId(''); setSettings(null); setUnlocked(false); }}
-              className="font-display text-[10px] tracking-widest text-text-dim hover:text-text-muted transition-colors uppercase"
+              className="text-xs tracking-wide text-text-dim hover:text-text-muted transition-colors uppercase"
             >
               ← Switch User
             </button>
           </div>
           <p className="text-xs text-text-muted">
             Managing:{' '}
-            <span className="font-display text-synapse">{userId}</span>
+            <span className="text-text-primary">{userId}</span>
           </p>
         </motion.div>
 
@@ -409,23 +415,15 @@ export default function ParentalControl() {
               exit={{ opacity: 0 }}
               className="flex items-center gap-3 rounded-xl border px-4 py-3"
               style={{
-                background: unlocked
-                  ? 'rgba(0,255,213,0.05)'
-                  : 'rgba(255,107,53,0.08)',
-                borderColor: unlocked
-                  ? 'rgba(0,255,213,0.15)'
-                  : 'rgba(255,107,53,0.2)',
+                background: 'rgba(253,250,246,0.9)',
+                borderColor: 'rgba(44,38,31,0.14)',
               }}
             >
-              <span className="text-lg">{unlocked ? '🔓' : '🔒'}</span>
               <div>
-                <p
-                  className="font-display text-xs tracking-widest uppercase"
-                  style={{ color: unlocked ? '#00ffd5' : '#ff6b35' }}
-                >
+                <p className="text-sm tracking-wide uppercase text-text-primary">
                   {unlocked ? 'Unlocked for this session' : 'Parental Lock Active'}
                 </p>
-                <p className="text-[10px] text-text-dim mt-0.5">
+                <p className="text-xs text-text-dim mt-1">
                   {unlocked
                     ? 'Changes will be saved to Supabase'
                     : 'Enter PIN to modify settings'}
@@ -444,8 +442,8 @@ export default function ParentalControl() {
               exit={{ opacity: 0, scale: 0.96 }}
               className="rounded-2xl border p-8 flex flex-col items-center gap-4"
               style={{
-                background: 'linear-gradient(135deg, rgba(15,15,25,0.95), rgba(10,10,18,0.95))',
-                borderColor: 'rgba(26,107,255,0.2)',
+                background: 'rgba(253,250,246,0.95)',
+                borderColor: 'rgba(44,38,31,0.14)',
               }}
             >
               {pinMode === 'unlock' && (
@@ -462,7 +460,7 @@ export default function ParentalControl() {
               )}
               <button
                 onClick={() => { setPinMode('none'); setPinError(''); }}
-                className="font-display text-[10px] tracking-widest text-text-dim hover:text-text-muted uppercase transition-colors"
+                className="text-xs tracking-wide text-text-dim hover:text-text-muted uppercase transition-colors"
               >
                 Cancel
               </button>
@@ -478,20 +476,19 @@ export default function ParentalControl() {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.05 }}
-              className="rounded-2xl border p-6"
+              className="rounded-2xl border p-8"
               style={{
-                background: 'linear-gradient(135deg, rgba(12,12,20,0.6), rgba(10,10,18,0.4))',
-                borderColor: 'rgba(0,255,213,0.08)',
+                background: 'rgba(253,250,246,0.95)',
+                borderColor: 'rgba(44,38,31,0.14)',
                 opacity: isLocked ? 0.5 : 1,
                 pointerEvents: isLocked ? 'none' : 'auto',
               }}
             >
               <div className="flex items-center gap-2 mb-4">
-                <div className="w-1.5 h-1.5 rounded-full bg-value" />
-                <h3 className="font-display text-xs tracking-[0.15em] text-value uppercase">
+                <h3 className="text-sm tracking-wide text-text-primary uppercase">
                   Allowed Interests
                 </h3>
-                <span className="ml-auto font-display text-[10px] text-text-dim">
+                <span className="ml-auto text-xs text-text-dim">
                   {interests.length} topics
                 </span>
               </div>
@@ -519,20 +516,19 @@ export default function ParentalControl() {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="rounded-2xl border p-6"
+              className="rounded-2xl border p-8"
               style={{
-                background: 'linear-gradient(135deg, rgba(12,12,20,0.6), rgba(10,10,18,0.4))',
-                borderColor: 'rgba(255,46,46,0.08)',
+                background: 'rgba(253,250,246,0.95)',
+                borderColor: 'rgba(44,38,31,0.14)',
                 opacity: isLocked ? 0.5 : 1,
                 pointerEvents: isLocked ? 'none' : 'auto',
               }}
             >
               <div className="flex items-center gap-2 mb-4">
-                <div className="w-1.5 h-1.5 rounded-full bg-toxic" />
-                <h3 className="font-display text-xs tracking-[0.15em] text-toxic uppercase">
+                <h3 className="text-sm tracking-wide text-text-primary uppercase">
                   Blocked Keywords
                 </h3>
-                <span className="ml-auto font-display text-[10px] text-text-dim">
+                <span className="ml-auto text-xs text-text-dim">
                   {toxic.length} filters
                 </span>
               </div>
@@ -566,8 +562,13 @@ export default function ParentalControl() {
               <button
                 onClick={saveSettings}
                 disabled={saving || isLocked}
-                className="px-6 py-2.5 rounded-xl font-display text-xs tracking-widest text-void transition-opacity"
-                style={{ background: '#00ffd5', opacity: saving || isLocked ? 0.4 : 1 }}
+                className="px-7 py-3 rounded-xl text-sm tracking-wide border transition-opacity"
+                style={{
+                  background: '#f3efe8',
+                  borderColor: 'rgba(44,38,31,0.2)',
+                  color: '#2c261f',
+                  opacity: saving || isLocked ? 0.45 : 1
+                }}
               >
                 {saving ? 'Saving…' : 'Save to Supabase'}
               </button>
@@ -576,26 +577,26 @@ export default function ParentalControl() {
               {!settings?.locked && (
                 <button
                   onClick={() => { setPinMode('set-1'); setPinError(''); }}
-                  className="px-5 py-2.5 rounded-xl font-display text-xs tracking-widest border transition-colors"
-                  style={{ borderColor: 'rgba(255,107,53,0.3)', color: '#ff6b35' }}
+                  className="px-6 py-3 rounded-xl text-sm tracking-wide border transition-colors"
+                  style={{ borderColor: 'rgba(44,38,31,0.2)', color: '#2c261f' }}
                 >
-                  🔒 Set Parental Lock
+                  Set Parental Lock
                 </button>
               )}
               {settings?.locked && !unlocked && (
                 <button
                   onClick={() => { setPinMode('unlock'); setPinError(''); }}
-                  className="px-5 py-2.5 rounded-xl font-display text-xs tracking-widest border transition-colors"
-                  style={{ borderColor: 'rgba(26,107,255,0.3)', color: '#1a6bff' }}
+                  className="px-6 py-3 rounded-xl text-sm tracking-wide border transition-colors"
+                  style={{ borderColor: 'rgba(44,38,31,0.2)', color: '#2c261f' }}
                 >
-                  🔓 Enter PIN
+                  Enter PIN
                 </button>
               )}
               {settings?.locked && unlocked && (
                 <button
                   onClick={() => { setPinMode('remove'); setPinError(''); }}
-                  className="px-5 py-2.5 rounded-xl font-display text-xs tracking-widest border transition-colors"
-                  style={{ borderColor: 'rgba(255,46,46,0.2)', color: '#ff2e2e' }}
+                  className="px-6 py-3 rounded-xl text-sm tracking-wide border transition-colors"
+                  style={{ borderColor: 'rgba(44,38,31,0.2)', color: '#2c261f' }}
                 >
                   Remove Lock
                 </button>
@@ -611,12 +612,11 @@ export default function ParentalControl() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              className="fixed bottom-8 left-1/2 -translate-x-1/2 rounded-xl border px-5 py-3 font-display text-xs tracking-wider"
+              className="fixed bottom-8 left-1/2 -translate-x-1/2 rounded-xl border px-6 py-3 text-sm tracking-wide"
               style={{
-                background: 'rgba(10,10,18,0.95)',
-                borderColor: status.ok ? 'rgba(0,255,213,0.3)' : 'rgba(255,46,46,0.3)',
-                color: status.ok ? '#00ffd5' : '#ff2e2e',
-                backdropFilter: 'blur(12px)',
+                background: 'rgba(253,250,246,0.97)',
+                borderColor: 'rgba(44,38,31,0.14)',
+                color: '#2c261f',
                 zIndex: 100,
               }}
             >
