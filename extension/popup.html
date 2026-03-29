@@ -210,6 +210,10 @@
   <h1>Shadow-Scroll</h1>
   <p class="subtitle">anti-algorithmic filter</p>
 
+  <div id="lock-banner" style="display:none;background:rgba(255,107,53,0.1);border:1px solid rgba(255,107,53,0.3);border-radius:6px;padding:8px 12px;margin-bottom:14px;text-align:center;">
+    <span style="color:#ff6b35;font-size:11px;letter-spacing:1px;text-transform:uppercase;">🔒 Parental lock active — settings controlled by parent</span>
+  </div>
+
   <div class="section">
     <div class="section-header">
       <span class="dot dot-green"></span>
@@ -249,6 +253,13 @@
   </div>
 
   <div class="status" id="status"></div>
+
+  <hr class="divider">
+
+  <div style="text-align:center;padding:4px 0 2px;">
+    <span style="font-size:10px;color:#333;letter-spacing:1px;text-transform:uppercase;">User ID</span><br>
+    <span id="user-id-display" style="font-size:10px;color:#444;font-family:inherit;word-break:break-all;"></span>
+  </div>
 
   <script src="popup.js"></script>
 </body>
