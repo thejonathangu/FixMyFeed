@@ -1,7 +1,27 @@
 const isIg = window.location.hostname.includes("instagram.com");
 const isTikTok = window.location.hostname.includes("tiktok.com");
 
-console.log("[Shadow-Scroll] Platform detected:", isIg ? "Instagram" : isTikTok ? "TikTok" : "Unknown");
+
+// ---------------------------------------------------------------------------
+// Watch tracking - tracks current video being watched for duration logging
+// ---------------------------------------------------------------------------
+var currentWatch = null;
+
+function logCurrentWatch() {
+  if (currentWatch && currentWatch.action !== "SKIP") {
+    var duration = Date.now() - currentWatch.startTime;
+    chrome.runtime.sendMessage({
+      type: "log_watch",
+      action_type: currentWatch.action,
+      duration_ms: duration,
+      text_content: currentWatch.textContent
+    });
+    if (currentWatch.dashboard && currentWatch.dashboard.parentNode) {
+      currentWatch.dashboard.remove();
+    }
+    currentWatch = null;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Scroll locking (from upstream — prevents manual skip during LIKE_AND_STAY)
@@ -79,8 +99,6 @@ function scrollToNext(container) {
   if (scrollLocked) return;
 
   if (isIg) {
-    console.log("[Shadow-Scroll] Instagram scrollToNext triggered");
-    
     // Try the native "Next" chevron button first (multiple aria-labels)
     const nextSelectors = [
       'svg[aria-label="Next"]',
@@ -94,7 +112,6 @@ function scrollToNext(container) {
       if (nextBtnSvg) {
         const nextBtn = nextBtnSvg.closest('button') || nextBtnSvg.closest('[role="button"]') || nextBtnSvg.parentElement;
         if (nextBtn) {
-          console.log("[Shadow-Scroll] Clicking Instagram next button");
           nextBtn.click();
           return;
         }
@@ -102,7 +119,6 @@ function scrollToNext(container) {
     }
     
     // Try keyboard navigation (Instagram supports arrow keys)
-    console.log("[Shadow-Scroll] Trying keyboard navigation");
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', keyCode: 40, bubbles: true }));
     
     // Fallback: scroll to the next video element
@@ -189,10 +205,10 @@ function scrapeVideoData(container) {
 // ---------------------------------------------------------------------------
 function createLoadingOverlay() {
   var overlay = document.createElement("div");
-  overlay.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2147483646;";
+  overlay.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2147483646;";
 
   var spinner = document.createElement("div");
-  spinner.style.cssText = "width:60px;height:60px;border:4px solid #333;border-top:4px solid #39ff14;border-radius:50%;animation:shadowspin 0.8s linear infinite;";
+  spinner.style.cssText = "width:60px;height:60px;border:4px solid #222;border-top:4px solid #39ff14;border-radius:50%;animation:shadowspin 0.8s linear infinite;";
 
   var text = document.createElement("div");
   text.style.cssText = "color:#39ff14;font-family:monospace;font-size:16px;margin-top:20px;";
@@ -220,6 +236,9 @@ const observer = new IntersectionObserver((entries) => {
 
     if (container.getAttribute("data-scanned") === "true") return;
     container.setAttribute("data-scanned", "true");
+
+    // Log previous video's watch time before starting new one
+    logCurrentWatch();
 
     // Scrape text — platform-aware
     let textContent = "";
@@ -255,8 +274,6 @@ const observer = new IntersectionObserver((entries) => {
       const usernameEl = document.querySelector('a[role="link"] span') || document.querySelector('header a span');
       if (usernameEl) textContent = "@" + usernameEl.innerText + " " + textContent;
       
-      console.log("[Shadow-Scroll] Instagram text extracted:", textContent.substring(0, 100) + "...");
-      
       if (!textContent || textContent.trim().length < 10) {
         textContent = "INSTAGRAM REEL - NO CAPTION DETECTED";
       }
@@ -277,6 +294,9 @@ const observer = new IntersectionObserver((entries) => {
       });
     }
     var loadingOverlay = createLoadingOverlay();
+    
+    // Track start time BEFORE API call
+    var videoStartTime = Date.now();
 
     chrome.runtime.sendMessage(
       { type: "evaluate", text: textContent },
@@ -291,6 +311,8 @@ const observer = new IntersectionObserver((entries) => {
         const delayMs = response.data.delay_ms;
 
         if (action === "SKIP") {
+          // Clear any previous watch since this one is skipped
+          currentWatch = null;
           scrollToNext(container);
           setTimeout(() => {
             if (loadingOverlay && loadingOverlay.parentNode) loadingOverlay.remove();
@@ -321,7 +343,19 @@ const observer = new IntersectionObserver((entries) => {
         dashboard.textContent = label;
         document.body.appendChild(dashboard);
 
-        var watchStartTime = Date.now();
+        // Start tracking this video
+        // If there's already a video being watched, log it first
+        if (currentWatch) {
+          logCurrentWatch();
+        }
+        
+        // Start tracking this video
+        currentWatch = {
+          action: action,
+          startTime: videoStartTime,
+          textContent: textContent,
+          dashboard: dashboard
+        };
 
         if (action === "LIKE_AND_STAY") {
           if (response.data.autolike) {
@@ -342,37 +376,26 @@ const observer = new IntersectionObserver((entries) => {
               }
             }
           }
+          // Lock scroll for 5 seconds, then unlock - user controls when they leave
           lockScroll(5, dashboard);
           setTimeout(() => {
             unlockScroll();
-            setTimeout(() => {
-              var watchDuration = Date.now() - watchStartTime;
-              chrome.runtime.sendMessage({
-                type: "log_watch",
-                action_type: action,
-                duration_ms: watchDuration,
-                text_content: textContent
-              });
-              dashboard.remove();
-            }, 2000);
+            // Update dashboard to show unlocked
+            if (dashboard && dashboard.parentNode) {
+              dashboard.textContent = dashboard.getAttribute("data-base-label") + "\n✓ Scroll unlocked - watching...";
+            }
           }, 5000);
         } else if (action === "WAIT") {
+          // Auto-scroll after delay, log duration when that happens
           setTimeout(() => {
-            var watchDuration = Date.now() - watchStartTime;
-            chrome.runtime.sendMessage({
-              type: "log_watch",
-              action_type: action,
-              duration_ms: watchDuration,
-              text_content: textContent
-            });
+            logCurrentWatch();
             scrollToNext(container);
-            dashboard.remove();
           }, delayMs);
         }
       }
     );
   });
-}, { threshold: isIg ? 0.1 : 0.6 });
+}, { threshold: 0.6 });
 
 // ---------------------------------------------------------------------------
 // Poll for new video containers every second — platform aware
@@ -380,7 +403,6 @@ const observer = new IntersectionObserver((entries) => {
 setInterval(() => {
   if (isIg) {
     const videos = document.querySelectorAll('video:not([data-observed])');
-    console.log("[Shadow-Scroll] Found", videos.length, "new Instagram videos");
     videos.forEach((el) => {
       el.setAttribute("data-observed", "true");
       observer.observe(el);
@@ -404,6 +426,3 @@ setInterval(() => {
   }
 }, 1000);
 
-if (isIg) {
-  console.log("[Shadow-Scroll] Instagram mode active - watching for reels...");
-}
