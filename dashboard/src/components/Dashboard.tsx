@@ -10,49 +10,51 @@ const TABS: { id: View; label: string }[] = [
   { id: 'analytics', label: 'Analytics' },
 ];
 
+const tabEase = [0.22, 1, 0.36, 1] as const;
+
+const tabPanel = {
+  initial: { opacity: 0, x: 14 },
+  animate: { opacity: 1, x: 0, transition: { duration: 0.3, ease: tabEase } },
+  exit: { opacity: 0, x: -10, transition: { duration: 0.3, ease: tabEase } },
+};
+
 export default function Dashboard() {
   const [view, setView] = useState<View>('neural-map');
 
   return (
-    <div className="min-h-screen flex flex-col items-stretch p-3 sm:p-6 lg:p-10">
-      <header className="shrink-0 text-center pt-4 pb-6 sm:pt-6 sm:pb-8">
-        <h1 className="font-display text-4xl sm:text-5xl md:text-6xl text-text-primary leading-tight">
-          FixMyFeed
-        </h1>
-        <p className="mt-2 text-sm text-text-muted font-body font-normal tracking-wide">
-          Attention, distilled.
-        </p>
-      </header>
-
+    <div className="min-h-screen flex flex-col items-stretch px-4 py-5 sm:px-8 sm:py-8 lg:px-12 lg:py-10">
       <div
-        className="flex flex-col w-full max-w-7xl mx-auto flex-1 min-h-0 h-[calc(100vh-10rem)] sm:h-[calc(100vh-12rem)] lg:h-[calc(100vh-13rem)] rounded-xl border overflow-hidden shadow-sm"
+        className="flex flex-col w-full max-w-7xl mx-auto flex-1 min-h-0 h-[calc(100vh-4.5rem)] sm:h-[calc(100vh-6.5rem)] lg:h-[calc(100vh-7.5rem)] rounded-[1.35rem] border overflow-hidden"
         style={{
-          background: 'rgba(253, 250, 246, 0.72)',
-          borderColor: 'rgba(44, 38, 31, 0.14)',
+          background: 'linear-gradient(165deg, rgba(253, 250, 246, 0.78) 0%, rgba(248, 243, 236, 0.62) 100%)',
+          borderColor: 'rgba(44, 38, 31, 0.12)',
           boxShadow:
-            '0 1px 2px rgba(44, 38, 31, 0.06), 0 12px 40px rgba(44, 38, 31, 0.06)',
-          backdropFilter: 'blur(8px)',
+            '0 2px 4px rgba(44, 38, 31, 0.05), 0 24px 56px rgba(44, 38, 31, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.5)',
+          backdropFilter: 'blur(16px) saturate(150%)',
+          WebkitBackdropFilter: 'blur(16px) saturate(150%)',
         }}
       >
         <nav
-          className="shrink-0 border-b z-50"
+          className="shrink-0 z-50 border-b"
           style={{
             borderColor: 'rgba(44, 38, 31, 0.1)',
-            background: 'rgba(253, 250, 246, 0.65)',
+            background: 'rgba(253, 250, 246, 0.45)',
+            backdropFilter: 'blur(14px) saturate(140%)',
+            WebkitBackdropFilter: 'blur(14px) saturate(140%)',
           }}
         >
-          <div className="w-full flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-3">
-            <div className="flex items-center gap-2 order-2 sm:order-1">
-              <span
-                className="font-body text-[11px] uppercase tracking-widest text-text-dim"
-                style={{ letterSpacing: '0.12em' }}
-              >
-                Dashboard
-              </span>
+          <div className="w-full flex flex-wrap items-center justify-between gap-4 px-5 sm:px-7 py-3.5 sm:py-4">
+            <div className="flex flex-col gap-0.5 min-w-0 order-1">
+              <h1 className="font-display text-2xl sm:text-3xl md:text-[2.1rem] text-text-primary leading-none truncate">
+                FixMyFeed
+              </h1>
+              <p className="font-body text-[11px] sm:text-xs text-text-muted tracking-wide">
+                Attention, distilled.
+              </p>
             </div>
 
             <div
-              className="order-1 sm:order-2 w-full sm:w-auto flex justify-center items-center gap-0.5 rounded-full p-0.5"
+              className="order-3 sm:order-2 w-full sm:w-auto flex justify-center items-center gap-0.5 rounded-full p-0.5"
               style={{ background: 'rgba(44, 38, 31, 0.06)' }}
             >
               {TABS.map((tab) => (
@@ -60,7 +62,7 @@ export default function Dashboard() {
                   key={tab.id}
                   type="button"
                   onClick={() => setView(tab.id)}
-                  className="relative px-4 sm:px-5 py-1.5 rounded-full font-body text-xs font-medium transition-colors duration-200"
+                  className="relative px-5 sm:px-6 py-2 rounded-full font-body text-xs font-medium transition-colors duration-200"
                   style={{
                     color: view === tab.id ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
                   }}
@@ -70,9 +72,9 @@ export default function Dashboard() {
                       layoutId="activeTab"
                       className="absolute inset-0 rounded-full"
                       style={{
-                        background: 'rgba(253, 250, 246, 0.95)',
+                        background: 'rgba(253, 250, 246, 0.92)',
                         border: '1px solid rgba(44, 38, 31, 0.1)',
-                        boxShadow: '0 1px 2px rgba(44, 38, 31, 0.05)',
+                        boxShadow: '0 2px 6px rgba(44, 38, 31, 0.06)',
                       }}
                       transition={{ type: 'spring', stiffness: 400, damping: 32 }}
                     />
@@ -82,14 +84,26 @@ export default function Dashboard() {
               ))}
             </div>
 
-            <div className="flex items-center gap-2 order-3">
-              <div
-                className="w-1.5 h-1.5 rounded-full shrink-0"
-                style={{ background: 'var(--color-value)' }}
-              />
+            <div
+              className="flex items-center gap-2 order-2 sm:order-3 sm:pl-2"
+              title="Extension active"
+            >
+              <motion.span
+                className="relative flex h-2 w-2 shrink-0"
+                aria-hidden
+              >
+                <span
+                  className="absolute inline-flex h-full w-full rounded-full opacity-40 animate-ping"
+                  style={{ background: 'var(--color-value)' }}
+                />
+                <span
+                  className="relative inline-flex h-2 w-2 rounded-full"
+                  style={{ background: 'var(--color-value)' }}
+                />
+              </motion.span>
               <span
                 className="font-body text-[10px] uppercase tracking-wider text-text-dim"
-                style={{ letterSpacing: '0.08em' }}
+                style={{ letterSpacing: '0.1em' }}
               >
                 Active
               </span>
@@ -102,10 +116,10 @@ export default function Dashboard() {
             {view === 'neural-map' && (
               <motion.div
                 key="neural-map"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
+                variants={tabPanel}
+                initial="initial"
+                animate="animate"
+                exit="exit"
                 className="absolute inset-0"
               >
                 <NeuralMap />
@@ -114,10 +128,10 @@ export default function Dashboard() {
             {view === 'analytics' && (
               <motion.div
                 key="analytics"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
+                variants={tabPanel}
+                initial="initial"
+                animate="animate"
+                exit="exit"
                 className="absolute inset-0"
               >
                 <Analytics />

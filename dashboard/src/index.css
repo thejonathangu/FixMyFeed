@@ -2,15 +2,17 @@
 
 @theme {
   /* Paper / ink palette */
+  --color-brand-green: #4e7754;
+  --color-brand-rose: #a86063;
   --color-void: #ebe4d8;
   --color-void-light: #f5f0ea;
   --color-abyss: #e5ddd0;
-  --color-toxic: #9e6b6b;
-  --color-toxic-dim: #8f6363;
+  --color-toxic: #a86063;
+  --color-toxic-dim: #9a5558;
   --color-toxic-dead: #948878;
-  --color-value: #5a6d5a;
-  --color-value-bright: #6a7f6a;
-  --color-value-glow: #5a6d5a35;
+  --color-value: #4e7754;
+  --color-value-bright: #5f8f66;
+  --color-value-glow: #4e775440;
   --color-synapse: #6b6560;
   --color-synapse-glow: #6b656022;
   --color-overlay-bg: #fdfaf5e8;
@@ -37,11 +39,20 @@ body,
   color: var(--color-text-primary);
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
-  background-color: var(--color-void-light);
-  background-image: url("./assets/paper.jpg");
-  background-size: 480px auto;
-  background-repeat: repeat;
-  background-attachment: fixed;
+  /* Warm linen/cream: paper texture + soft cream wash (keeps paper look) */
+  background-color: #f3ede4;
+  background-image:
+    linear-gradient(
+      180deg,
+      rgba(253, 248, 240, 0.72) 0%,
+      rgba(245, 238, 228, 0.55) 50%,
+      rgba(238, 230, 218, 0.65) 100%
+    ),
+    url("./assets/paper.jpg");
+  background-size: auto, 480px auto;
+  background-repeat: no-repeat, repeat;
+  background-attachment: fixed, fixed;
+  background-blend-mode: normal, multiply;
 }
 
 /* Subtle vignette so texture doesn’t fight contrast */
@@ -80,4 +91,15 @@ body,
 
 canvas {
   image-rendering: auto;
+}
+
+/* Frosted panel helper — used on map legend & similar */
+.glass-frosted {
+  background: rgba(253, 250, 246, 0.52);
+  border: 1px solid rgba(44, 38, 31, 0.12);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  box-shadow:
+    0 1px 1px rgba(44, 38, 31, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }

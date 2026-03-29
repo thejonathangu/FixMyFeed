@@ -83,7 +83,7 @@ export default function MindfulnessOverlay({ toxicIntercepted, rewiringPct }: Mi
               {/* Auto-dismiss progress bar */}
               <motion.div
                 className="absolute bottom-0 left-0 h-[2px]"
-                style={{ background: 'linear-gradient(90deg, #6b6560, #5a6d5a)' }}
+                style={{ background: 'linear-gradient(90deg, #6b6560, #4e7754)' }}
                 initial={{ width: '100%' }}
                 animate={{ width: '0%' }}
                 transition={{ duration: 4, ease: 'linear' }}

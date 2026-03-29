@@ -214,7 +214,7 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
 
           if (isHighlighted) {
             const isVal = n.category === 'value';
-            ctx.strokeStyle = isVal ? 'rgba(90, 109, 90, 0.45)' : 'rgba(158, 107, 107, 0.4)';
+            ctx.strokeStyle = isVal ? 'rgba(78, 119, 84, 0.45)' : 'rgba(168, 96, 99, 0.4)';
             ctx.lineWidth = 1.5;
           } else if (isDimmed) {
             ctx.strokeStyle = 'rgba(44, 38, 31, 0.04)';
@@ -267,7 +267,7 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
 
         if (isActive && n.category === 'toxic') {
           const grad = ctx.createRadialGradient(sx, sy, r * 0.3, sx, sy, r * 2);
-          grad.addColorStop(0, `rgba(158, 107, 107, ${0.14 * depthAlpha})`);
+          grad.addColorStop(0, `rgba(168, 96, 99, ${0.14 * depthAlpha})`);
           grad.addColorStop(1, 'rgba(0,0,0,0)');
           ctx.beginPath();
           ctx.arc(sx, sy, r * 2, 0, Math.PI * 2);
@@ -312,7 +312,7 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
             ctx.textBaseline = 'top';
             ctx.fillStyle =
               n.category === 'value'
-                ? `rgba(90, 109, 90, ${Math.max(0.35, cur.weight) * depthAlpha})`
+                ? `rgba(78, 119, 84, ${Math.max(0.35, cur.weight) * depthAlpha})`
                 : `rgba(200, 140, 130, ${Math.max(0.35, cur.weight * 0.75) * depthAlpha})`;
             ctx.fillText(n.theme_name, sx, sy + r + 4);
           }
@@ -476,15 +476,15 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
                 background: 'rgba(253, 250, 246, 0.95)',
                 borderColor:
                   hovered.node.category === 'value'
-                    ? 'rgba(90, 109, 90, 0.35)'
-                    : 'rgba(158, 107, 107, 0.35)',
+                    ? 'rgba(78, 119, 84, 0.35)'
+                    : 'rgba(168, 96, 99, 0.35)',
                 backdropFilter: 'blur(10px)',
               }}
             >
               <p
                 className="font-body text-[10px] tracking-wide uppercase mb-0.5 font-medium"
                 style={{
-                  color: hovered.node.category === 'value' ? '#5a6d5a' : '#9e6b6b',
+                  color: hovered.node.category === 'value' ? '#4e7754' : '#a86063',
                 }}
               >
                 {hovered.node.category === 'value' ? 'High Value' : 'Toxic'}
@@ -515,8 +515,8 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
                 background: 'rgba(253, 250, 246, 0.94)',
                 borderColor:
                   selected.node.category === 'value'
-                    ? 'rgba(90, 109, 90, 0.25)'
-                    : 'rgba(158, 107, 107, 0.25)',
+                    ? 'rgba(78, 119, 84, 0.25)'
+                    : 'rgba(168, 96, 99, 0.25)',
                 backdropFilter: 'blur(12px)',
                 boxShadow: '0 12px 40px rgba(44, 38, 31, 0.12)',
               }}
@@ -526,8 +526,8 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
                 style={{
                   background:
                     selected.node.category === 'value'
-                      ? 'linear-gradient(90deg, transparent, #5a6d5a, transparent)'
-                      : 'linear-gradient(90deg, transparent, #9e6b6b, transparent)',
+                      ? 'linear-gradient(90deg, transparent, #4e7754, transparent)'
+                      : 'linear-gradient(90deg, transparent, #a86063, transparent)',
                 }}
               />
 
@@ -544,22 +544,22 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
                   style={{
                     background:
                       selected.node.category === 'value'
-                        ? 'rgba(90, 109, 90, 0.12)'
-                        : 'rgba(158, 107, 107, 0.12)',
+                        ? 'rgba(78, 119, 84, 0.12)'
+                        : 'rgba(168, 96, 99, 0.12)',
                   }}
                 >
                   <div
                     className="w-1.5 h-1.5 rounded-full"
                     style={{
                       background:
-                        selected.node.category === 'value' ? '#5a6d5a' : '#9e6b6b',
+                        selected.node.category === 'value' ? '#4e7754' : '#a86063',
                     }}
                   />
                   <span
                     className="font-body text-[9px] tracking-wide uppercase font-medium"
                     style={{
                       color:
-                        selected.node.category === 'value' ? '#5a6d5a' : '#9e6b6b',
+                        selected.node.category === 'value' ? '#4e7754' : '#a86063',
                     }}
                   >
                     {selected.node.category === 'value' ? 'High Value' : 'Toxic Pattern'}
@@ -591,8 +591,8 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
                       style={{
                         background:
                           selected.node.category === 'value'
-                            ? 'linear-gradient(90deg, #6b6560, #5a6d5a)'
-                            : 'linear-gradient(90deg, #8a6a6a, #9e6b6b)',
+                            ? 'linear-gradient(90deg, #6b6560, #4e7754)'
+                            : 'linear-gradient(90deg, #9e585e, #a86063)',
                       }}
                     />
                   </div>
@@ -613,7 +613,7 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
                           <div
                             className="w-2 h-2 rounded-full shrink-0"
                             style={{
-                              background: cn.category === 'value' ? '#5a6d5a' : '#9e6b6b',
+                              background: cn.category === 'value' ? '#4e7754' : '#a86063',
                               opacity: Math.max(0.4, cn.weight),
                             }}
                           />
