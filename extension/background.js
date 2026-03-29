@@ -93,8 +93,8 @@ async function getColorCreditStatus() {
 
 async function consumeColorCredit(videoData) {
   await saveVideoEvent({
-    action_type: "watched",
-    ...videoData
+    ...videoData,
+    action_type: "watched"
   });
   return getColorCreditStatus();
 }
