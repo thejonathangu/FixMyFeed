@@ -514,7 +514,7 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
             initial={{ opacity: 0, x: 30 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 20 }}
-            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] as const }}
             className="absolute top-4 right-4 w-72 z-40"
           >
             <div
