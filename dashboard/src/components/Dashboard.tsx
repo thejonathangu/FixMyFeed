@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import NeuralMap from '../pages/NeuralMap';
 import Analytics from '../pages/Analytics';
+import ParentalControl from '../pages/ParentalControl';
 
-type View = 'neural-map' | 'analytics';
+type View = 'neural-map' | 'analytics' | 'parental';
 
 const TABS: { id: View; label: string; icon: string }[] = [
   { id: 'neural-map', label: 'Neural Map', icon: '◈' },
   { id: 'analytics', label: 'Analytics', icon: '◇' },
+  { id: 'parental', label: 'Controls', icon: '🔐' },
 ];
 
 export default function Dashboard() {
@@ -101,6 +103,18 @@ export default function Dashboard() {
               className="absolute inset-0"
             >
               <Analytics />
+            </motion.div>
+          )}
+          {view === 'parental' && (
+            <motion.div
+              key="parental"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              className="absolute inset-0"
+            >
+              <ParentalControl />
             </motion.div>
           )}
         </AnimatePresence>
