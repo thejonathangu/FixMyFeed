@@ -165,7 +165,7 @@ export default function NeuralMap() {
                 }}
                 initial={false}
                 animate={{ scaleX: interpolated.stats.rewiring_pct / 100 }}
-                transition={{ duration: 0.85, ease: [0.22, 1, 0.36, 1] }}
+                transition={{ duration: 0.85, ease: [0.22, 1, 0.36, 1] as const }}
               />
             </div>
             <RewiringPercent value={interpolated.stats.rewiring_pct} />

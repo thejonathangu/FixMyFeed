@@ -56,7 +56,7 @@ export default function MindfulnessOverlay({ toxicIntercepted, rewiringPct }: Mi
             initial={{ opacity: 0, x: 80, scale: 0.9, filter: 'blur(8px)' }}
             animate={{ opacity: 1, x: 0, scale: 1, filter: 'blur(0px)' }}
             exit={{ opacity: 0, x: 40, scale: 0.95, filter: 'blur(4px)' }}
-            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] as const }}
             className="pointer-events-auto"
           >
             <div

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   fetchInsights,
   fetchStats,
@@ -34,7 +34,7 @@ const staggerItem = {
   show: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] },
+    transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] as const },
   },
 };
 
@@ -342,7 +342,7 @@ function NeuralScoreCard({
                 strokeLinecap="round"
                 initial={{ pathLength: 0 }}
                 animate={{ pathLength: score / 100 }}
-                transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
+                transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] as const }}
                 style={{
                   strokeDasharray: '264',
                   strokeDashoffset: '0',
