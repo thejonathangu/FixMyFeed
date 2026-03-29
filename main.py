@@ -1,9 +1,11 @@
 import time
 import os
 import json
+import re
 import requests
 from dotenv import load_dotenv
 from fastapi import FastAPI
+from supabase import create_client
 
 load_dotenv()
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,6 +13,15 @@ from pydantic import BaseModel
 from typing import List
 
 app = FastAPI()
+
+supabase_url = os.environ.get("SUPABASE_URL", "")
+supabase_key = os.environ.get("SUPABASE_KEY", "")
+supabase = None
+if supabase_url and supabase_key:
+    supabase = create_client(supabase_url, supabase_key)
+    print("Supabase connected!")
+else:
+    print("Supabase not configured - skipping event logging")
 
 app.add_middleware(
     CORSMiddleware,
@@ -24,6 +35,20 @@ class EvaluateRequest(BaseModel):
     text_content: str
     interests: List[str]
     toxic_keywords: List[str]
+    user_id: str = "anonymous"
+
+
+def parse_tiktok_text(text):
+    lines = text.strip().split("\n")
+    creator = lines[0].strip() if lines else ""
+    hashtags = re.findall(r"#\w+", text)
+    caption_lines = []
+    for line in lines[1:]:
+        line = line.strip()
+        if line and not line.startswith("#") and not re.match(r"^\d+\.?\d*[KMB]?$", line) and line != "more" and "00:00" not in line:
+            caption_lines.append(line)
+    caption = " ".join(caption_lines)[:500]
+    return creator, hashtags, caption
 
 
 @app.post("/evaluate")
@@ -115,6 +140,22 @@ Respond with ONLY valid JSON:
 
     compute_time_ms = (time.perf_counter() - start) * 1000
 
+    if action == "SKIP":
+        if supabase:
+            try:
+                creator, hashtags, caption = parse_tiktok_text(payload.text_content)
+                supabase.table("video_events").insert({
+                    "user_id": payload.user_id,
+                    "action_type": action,
+                    "duration_ms": 0,
+                    "caption": caption,
+                    "hashtags": hashtags,
+                    "creator": creator,
+                }).execute()
+                print(f"Logged to Supabase: {action} | {creator} | 0ms")
+            except Exception as e:
+                print(f"Supabase error: {e}")
+
     return {
         "action": action,
         "score": score,
@@ -122,6 +163,34 @@ Respond with ONLY valid JSON:
         "delay_ms": delay_ms,
         "compute_time_ms": compute_time_ms,
     }
+
+
+class LogWatchRequest(BaseModel):
+    user_id: str = "anonymous"
+    action_type: str
+    duration_ms: int
+    text_content: str
+
+
+@app.post("/log_watch")
+def log_watch(payload: LogWatchRequest):
+    if supabase:
+        try:
+            creator, hashtags, caption = parse_tiktok_text(payload.text_content)
+            supabase.table("video_events").insert({
+                "user_id": payload.user_id,
+                "action_type": payload.action_type,
+                "duration_ms": payload.duration_ms,
+                "caption": caption,
+                "hashtags": hashtags,
+                "creator": creator,
+            }).execute()
+            print(f"Logged to Supabase: {payload.action_type} | {creator} | {payload.duration_ms}ms")
+            return {"success": True}
+        except Exception as e:
+            print(f"Supabase error: {e}")
+            return {"success": False, "error": str(e)}
+    return {"success": False, "error": "Supabase not configured"}
 
 
 if __name__ == "__main__":

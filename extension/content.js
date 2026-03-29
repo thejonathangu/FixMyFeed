@@ -1,4 +1,7 @@
-const isIg = window.location.href.includes("instagram.com");
+const isIg = window.location.hostname.includes("instagram.com");
+const isTikTok = window.location.hostname.includes("tiktok.com");
+
+console.log("[Shadow-Scroll] Platform detected:", isIg ? "Instagram" : isTikTok ? "TikTok" : "Unknown");
 
 // ---------------------------------------------------------------------------
 // Scroll locking (from upstream — prevents manual skip during LIKE_AND_STAY)
@@ -76,32 +79,41 @@ function scrollToNext(container) {
   if (scrollLocked) return;
 
   if (isIg) {
-    // Try the native "Next" chevron button first
-    const nextBtnSvg = document.querySelector('svg[aria-label="Next"]');
-    if (nextBtnSvg) {
-      const nextBtn = nextBtnSvg.closest('button') || nextBtnSvg.closest('[role="button"]') || nextBtnSvg.parentElement;
-      if (nextBtn) {
-        nextBtn.click();
-        return;
+    console.log("[Shadow-Scroll] Instagram scrollToNext triggered");
+    
+    // Try the native "Next" chevron button first (multiple aria-labels)
+    const nextSelectors = [
+      'svg[aria-label="Next"]',
+      'svg[aria-label="Go forward"]', 
+      'button[aria-label="Next"]',
+      'div[role="button"] svg[aria-label*="Next"]'
+    ];
+    
+    for (const sel of nextSelectors) {
+      const nextBtnSvg = document.querySelector(sel);
+      if (nextBtnSvg) {
+        const nextBtn = nextBtnSvg.closest('button') || nextBtnSvg.closest('[role="button"]') || nextBtnSvg.parentElement;
+        if (nextBtn) {
+          console.log("[Shadow-Scroll] Clicking Instagram next button");
+          nextBtn.click();
+          return;
+        }
       }
     }
+    
+    // Try keyboard navigation (Instagram supports arrow keys)
+    console.log("[Shadow-Scroll] Trying keyboard navigation");
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', keyCode: 40, bubbles: true }));
+    
     // Fallback: scroll to the next video element
     var all = Array.from(document.querySelectorAll('video'));
     var currentIndex = all.indexOf(container);
     if (currentIndex !== -1 && currentIndex + 1 < all.length) {
       all[currentIndex + 1].scrollIntoView({ behavior: "smooth", block: "center" });
     } else {
-      let scrollParent = container;
-      while (scrollParent && scrollParent.scrollHeight <= scrollParent.clientHeight) {
-        scrollParent = scrollParent.parentElement;
-      }
-      if (scrollParent) {
-        scrollParent.scrollBy({ top: window.innerHeight, behavior: "smooth" });
-      } else {
-        window.scrollBy({ top: window.innerHeight, behavior: "smooth" });
-      }
+      window.scrollBy({ top: window.innerHeight, behavior: "smooth" });
     }
-  } else {
+  } else if (isTikTok) {
     var all = document.querySelectorAll('[data-e2e="recommend-list-item-container"]');
     for (var i = 0; i < all.length; i++) {
       if (all[i] === container && i + 1 < all.length) {
@@ -212,17 +224,42 @@ const observer = new IntersectionObserver((entries) => {
     // Scrape text — platform-aware
     let textContent = "";
     if (isIg) {
-      // Walk up the DOM to find the full-screen reel wrapper (contains caption + username)
+      // Try multiple strategies to get Instagram reel content
       let wrapper = container;
+      
+      // Strategy 1: Walk up to find article or large container
       let depth = 0;
-      while (wrapper.parentElement && wrapper.tagName !== 'BODY' && depth < 20) {
+      while (wrapper.parentElement && wrapper.tagName !== 'BODY' && depth < 15) {
         wrapper = wrapper.parentElement;
         depth++;
-        if (wrapper.clientHeight >= window.innerHeight * 0.7 && wrapper.innerText && wrapper.innerText.trim().length > 20) {
+        if (wrapper.tagName === 'ARTICLE' || 
+            (wrapper.clientHeight >= window.innerHeight * 0.5 && wrapper.innerText && wrapper.innerText.trim().length > 30)) {
           break;
         }
       }
-      textContent = wrapper.innerText || "INSTAGRAM REEL NO CAPTION";
+      
+      textContent = wrapper.innerText || "";
+      
+      // Strategy 2: If still empty, try to find nearby text elements
+      if (textContent.trim().length < 20) {
+        const possibleCaptions = document.querySelectorAll('span[dir="auto"], h1, h2');
+        const texts = [];
+        possibleCaptions.forEach(el => {
+          const t = el.innerText?.trim();
+          if (t && t.length > 5 && t.length < 500) texts.push(t);
+        });
+        if (texts.length > 0) textContent = texts.join(" ");
+      }
+      
+      // Strategy 3: Get username from visible elements
+      const usernameEl = document.querySelector('a[role="link"] span') || document.querySelector('header a span');
+      if (usernameEl) textContent = "@" + usernameEl.innerText + " " + textContent;
+      
+      console.log("[Shadow-Scroll] Instagram text extracted:", textContent.substring(0, 100) + "...");
+      
+      if (!textContent || textContent.trim().length < 10) {
+        textContent = "INSTAGRAM REEL - NO CAPTION DETECTED";
+      }
     } else {
       textContent = container.innerText || "";
     }
@@ -244,13 +281,24 @@ const observer = new IntersectionObserver((entries) => {
     chrome.runtime.sendMessage(
       { type: "evaluate", text: textContent },
       (response) => {
-        if (loadingOverlay && loadingOverlay.parentNode) loadingOverlay.remove();
-        
-        if (!response || !response.success) return;
+        if (!response || !response.success) {
+          if (loadingOverlay && loadingOverlay.parentNode) loadingOverlay.remove();
+          return;
+        }
 
         const action = response.data.action;
         const score = response.data.score;
         const delayMs = response.data.delay_ms;
+
+        if (action === "SKIP") {
+          scrollToNext(container);
+          setTimeout(() => {
+            if (loadingOverlay && loadingOverlay.parentNode) loadingOverlay.remove();
+          }, 500);
+          return;
+        }
+
+        if (loadingOverlay && loadingOverlay.parentNode) loadingOverlay.remove();
 
         const dashboard = document.createElement("div");
         dashboard.style.position = "fixed";
@@ -273,13 +321,9 @@ const observer = new IntersectionObserver((entries) => {
         dashboard.textContent = label;
         document.body.appendChild(dashboard);
 
-        if (action === "SKIP") {
-          setTimeout(() => {
-            scrollToNext(container);
-            dashboard.remove();
-          }, 0);
-        } else if (action === "LIKE_AND_STAY") {
-          // Auto-like — platform aware
+        var watchStartTime = Date.now();
+
+        if (action === "LIKE_AND_STAY") {
           if (response.data.autolike) {
             if (isIg) {
               let wrapper = container;
@@ -301,10 +345,26 @@ const observer = new IntersectionObserver((entries) => {
           lockScroll(5, dashboard);
           setTimeout(() => {
             unlockScroll();
-            setTimeout(() => { dashboard.remove(); }, 2000);
+            setTimeout(() => {
+              var watchDuration = Date.now() - watchStartTime;
+              chrome.runtime.sendMessage({
+                type: "log_watch",
+                action_type: action,
+                duration_ms: watchDuration,
+                text_content: textContent
+              });
+              dashboard.remove();
+            }, 2000);
           }, 5000);
         } else if (action === "WAIT") {
           setTimeout(() => {
+            var watchDuration = Date.now() - watchStartTime;
+            chrome.runtime.sendMessage({
+              type: "log_watch",
+              action_type: action,
+              duration_ms: watchDuration,
+              text_content: textContent
+            });
             scrollToNext(container);
             dashboard.remove();
           }, delayMs);
@@ -319,12 +379,21 @@ const observer = new IntersectionObserver((entries) => {
 // ---------------------------------------------------------------------------
 setInterval(() => {
   if (isIg) {
-    const containers = document.querySelectorAll('video:not([data-observed])');
-    containers.forEach((el) => {
+    const videos = document.querySelectorAll('video:not([data-observed])');
+    console.log("[Shadow-Scroll] Found", videos.length, "new Instagram videos");
+    videos.forEach((el) => {
       el.setAttribute("data-observed", "true");
       observer.observe(el);
     });
-  } else {
+    
+    const reelContainers = document.querySelectorAll('article:not([data-observed]), div[role="dialog"] video:not([data-observed])');
+    reelContainers.forEach((el) => {
+      if (!el.getAttribute("data-observed")) {
+        el.setAttribute("data-observed", "true");
+        observer.observe(el);
+      }
+    });
+  } else if (isTikTok) {
     const containers = document.querySelectorAll(
       '[data-e2e="recommend-list-item-container"]:not([data-observed])'
     );
@@ -334,3 +403,7 @@ setInterval(() => {
     });
   }
 }, 1000);
+
+if (isIg) {
+  console.log("[Shadow-Scroll] Instagram mode active - watching for reels...");
+}

@@ -95,6 +95,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === "log_watch") {
+    chrome.storage.local.get(["user_id"], (data) => {
+      var userId = data.user_id || "anonymous";
+      fetch(API + "/log_watch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: userId,
+          action_type: message.action_type,
+          duration_ms: message.duration_ms,
+          text_content: message.text_content,
+        }),
+      })
+        .then((res) => res.json())
+        .then((result) => sendResponse(result))
+        .catch((err) => sendResponse({ success: false, error: err.message }));
+    });
+    return true;
+  }
+
   if (message.type === "getSettings") {
     chrome.storage.local.get(["interests", "toxic"], (data) => {
       sendResponse({
