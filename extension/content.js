@@ -48,6 +48,20 @@ function updateDashboardCredits(dashboard, creditStatus) {
   dashboard.textContent = dashboard.getAttribute("data-base-label");
 }
 
+function normalizeCategoryVector(action, arr) {
+  var out = [];
+  if (Array.isArray(arr)) {
+    for (var i = 0; i < arr.length && out.length < 3; i++) {
+      var s = String(arr[i] == null ? "" : arr[i]).trim().slice(0, 30);
+      if (s) out.push(s);
+    }
+  }
+  if (out.length) return out;
+  if (action === "WAIT") return ["uncategorized", "neutral"];
+  if (action === "LIKE_AND_STAY") return ["aligned", "interest_match"];
+  return [];
+}
+
 function getColorCreditStatus() {
   return new Promise(function(resolve) {
     chrome.runtime.sendMessage({ action: "get_color_credit_status" }, function(response) {
@@ -423,13 +437,20 @@ const observer = new IntersectionObserver((entries) => {
               applyCreditFilter(status);
             }
           });
+          var categoryVecWait = normalizeCategoryVector(action, response.data.category_vector);
           setTimeout(() => {
             var durationMs = Date.now() - videoStartTime;
             chrome.runtime.sendMessage({
-              type: "log_watch",
-              action_type: action,
-              duration_ms: durationMs,
-              text_content: textContent
+              action: "log_video",
+              data: {
+                action_type: action,
+                caption: videoData.caption,
+                hashtags: videoData.hashtags,
+                creator: videoData.creator,
+                platform: videoData.platform,
+                category_vector: categoryVecWait,
+                duration_ms: durationMs
+              }
             }, function() { if (chrome.runtime.lastError) {} });
             if (loadingOverlay && loadingOverlay.parentNode) loadingOverlay.remove();
             scrollToNext(container);
@@ -479,6 +500,8 @@ const observer = new IntersectionObserver((entries) => {
           dashboard: dashboard
         };
 
+        var categoryVecLike = normalizeCategoryVector(action, response.data.category_vector);
+
         chrome.runtime.sendMessage({
           action: "log_video",
           data: {
@@ -487,7 +510,7 @@ const observer = new IntersectionObserver((entries) => {
             hashtags: videoData.hashtags,
             creator: videoData.creator,
             platform: videoData.platform,
-            category_vector: response.data.category_vector || []
+            category_vector: categoryVecLike
           }
         }, function() {
           if (chrome.runtime.lastError) {
