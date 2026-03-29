@@ -122,16 +122,16 @@ export default function AttentionChart({ data }: { data: WatchtimePoint[] }) {
           >
             <defs>
               <linearGradient id="positiveGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#00ffd5" stopOpacity="0.2" />
-                <stop offset="100%" stopColor="#00ffd5" stopOpacity="0.01" />
+                <stop offset="0%" stopColor="#5a6d5a" stopOpacity="0.22" />
+                <stop offset="100%" stopColor="#5a6d5a" stopOpacity="0.03" />
               </linearGradient>
               <linearGradient id="toxicGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#ff2e2e" stopOpacity="0.12" />
-                <stop offset="100%" stopColor="#ff2e2e" stopOpacity="0.01" />
+                <stop offset="0%" stopColor="#9e6b6b" stopOpacity="0.14" />
+                <stop offset="100%" stopColor="#9e6b6b" stopOpacity="0.02" />
               </linearGradient>
               <linearGradient id="qualityGrad" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#1a6bff" />
-                <stop offset="100%" stopColor="#00ffd5" />
+                <stop offset="0%" stopColor="#6b6560" />
+                <stop offset="100%" stopColor="#5a6d5a" />
               </linearGradient>
             </defs>
 
@@ -143,16 +143,16 @@ export default function AttentionChart({ data }: { data: WatchtimePoint[] }) {
                   y1={g.y}
                   x2={pad.left + chartW}
                   y2={g.y}
-                  stroke="rgba(255,255,255,0.04)"
+                  stroke="rgba(44,38,31,0.08)"
                   strokeWidth={0.5}
                 />
                 <text
                   x={pad.left - 10}
                   y={g.y + 3}
                   textAnchor="end"
-                  fill="#3a3a50"
+                  fill="#8a8274"
                   fontSize={10}
-                  fontFamily='"Departure Mono", monospace'
+                  fontFamily='"DM Sans", sans-serif'
                 >
                   {g.label}
                 </text>
@@ -166,9 +166,9 @@ export default function AttentionChart({ data }: { data: WatchtimePoint[] }) {
                 x={xScale(i)}
                 y={pad.top + chartH + 25}
                 textAnchor="middle"
-                fill="#3a3a50"
+                fill="#8a8274"
                 fontSize={10}
-                fontFamily='"Departure Mono", monospace'
+                fontFamily='"DM Sans", sans-serif'
               >
                 {d.label}
               </text>
@@ -200,7 +200,7 @@ export default function AttentionChart({ data }: { data: WatchtimePoint[] }) {
                 <motion.path
                   d={toSmooth(toxicPoints)}
                   fill="none"
-                  stroke="#ff2e2e"
+                  stroke="#9e6b6b"
                   strokeWidth={1.5}
                   strokeLinecap="round"
                   initial={{ pathLength: 0, opacity: 0 }}
@@ -210,7 +210,7 @@ export default function AttentionChart({ data }: { data: WatchtimePoint[] }) {
                 <motion.path
                   d={toSmooth(positivePoints)}
                   fill="none"
-                  stroke="#00ffd5"
+                  stroke="#5a6d5a"
                   strokeWidth={2}
                   strokeLinecap="round"
                   initial={{ pathLength: 0, opacity: 0 }}
@@ -239,7 +239,7 @@ export default function AttentionChart({ data }: { data: WatchtimePoint[] }) {
                     cx={pt.x}
                     cy={pt.y}
                     r={hoveredIdx === i ? 5 : 3}
-                    fill="#00ffd5"
+                    fill="#5a6d5a"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.5 + i * 0.05 }}
@@ -248,7 +248,7 @@ export default function AttentionChart({ data }: { data: WatchtimePoint[] }) {
                     cx={toxicPoints[i].x}
                     cy={toxicPoints[i].y}
                     r={hoveredIdx === i ? 4 : 2.5}
-                    fill="#ff2e2e"
+                    fill="#9e6b6b"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 0.7 }}
                     transition={{ delay: 0.3 + i * 0.05 }}
@@ -282,7 +282,7 @@ export default function AttentionChart({ data }: { data: WatchtimePoint[] }) {
                 y1={pad.top}
                 x2={xScale(hoveredIdx)}
                 y2={pad.top + chartH}
-                stroke="rgba(255,255,255,0.1)"
+                stroke="rgba(44,38,31,0.12)"
                 strokeWidth={1}
                 strokeDasharray="3 3"
               />
@@ -307,12 +307,12 @@ export default function AttentionChart({ data }: { data: WatchtimePoint[] }) {
           <div
             className="rounded-lg border px-4 py-3 min-w-[160px]"
             style={{
-              background: 'rgba(10, 10, 18, 0.95)',
-              borderColor: 'rgba(255, 255, 255, 0.06)',
-              backdropFilter: 'blur(12px)',
+              background: 'rgba(253, 250, 246, 0.95)',
+              borderColor: 'rgba(44, 38, 31, 0.12)',
+              backdropFilter: 'blur(10px)',
             }}
           >
-            <p className="font-display text-[10px] tracking-[0.15em] text-text-dim uppercase mb-2">
+            <p className="font-body text-[10px] tracking-wide text-text-dim uppercase mb-2">
               {hovered.label} — Day {hovered.day}
             </p>
             <div className="space-y-1.5">
@@ -321,7 +321,7 @@ export default function AttentionChart({ data }: { data: WatchtimePoint[] }) {
                   <div className="w-2 h-2 rounded-full bg-value" />
                   <span className="text-xs text-text-muted">Positive</span>
                 </div>
-                <span className="font-display text-xs text-text-primary tabular-nums">
+                <span className="font-body text-xs text-text-primary tabular-nums">
                   {hovered.positive_min}m
                 </span>
               </div>
@@ -330,13 +330,13 @@ export default function AttentionChart({ data }: { data: WatchtimePoint[] }) {
                   <div className="w-2 h-2 rounded-full bg-toxic" />
                   <span className="text-xs text-text-muted">Toxic</span>
                 </div>
-                <span className="font-display text-xs text-text-primary tabular-nums">
+                <span className="font-body text-xs text-text-primary tabular-nums">
                   {hovered.toxic_min}m
                 </span>
               </div>
               <div className="flex items-center justify-between gap-4 pt-1 border-t border-white/[0.04]">
                 <span className="text-xs text-text-muted">Quality</span>
-                <span className="font-display text-xs text-value tabular-nums">
+                <span className="font-body text-xs text-value tabular-nums">
                   {hovered.quality_score}%
                 </span>
               </div>
@@ -349,19 +349,19 @@ export default function AttentionChart({ data }: { data: WatchtimePoint[] }) {
       <div className="absolute top-2 right-4 flex items-center gap-5">
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-[2px] rounded bg-value" />
-          <span className="font-display text-[10px] text-text-dim tracking-wider">
+          <span className="font-body text-[10px] text-text-dim tracking-wider">
             Positive
           </span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-[2px] rounded bg-toxic opacity-60" />
-          <span className="font-display text-[10px] text-text-dim tracking-wider">
+          <span className="font-body text-[10px] text-text-dim tracking-wider">
             Toxic
           </span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-[2px] rounded border-b border-dashed border-synapse" />
-          <span className="font-display text-[10px] text-text-dim tracking-wider">
+          <span className="font-body text-[10px] text-text-dim tracking-wider">
             Quality Score
           </span>
         </div>

@@ -35,11 +35,11 @@ export default function NeuralMap() {
           <motion.div
             animate={{ rotate: 360 }}
             transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
-            className="w-10 h-10 mx-auto mb-3 border border-value/30 rounded-full"
-            style={{ borderTopColor: '#00ffd5' }}
+            className="w-10 h-10 mx-auto mb-3 border rounded-full border-stone-300"
+            style={{ borderTopColor: '#5a6d5a' }}
           />
-          <p className="font-display text-[10px] tracking-[0.3em] text-text-dim uppercase">
-            Mapping Neural Topology
+          <p className="font-body text-xs tracking-widest text-text-dim uppercase">
+            Loading map
           </p>
         </div>
       </div>
@@ -53,24 +53,24 @@ export default function NeuralMap() {
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
-        className="shrink-0 border-b border-white/[0.03]"
+        className="shrink-0 border-b border-stone-400/25"
       >
         <div className="max-w-7xl mx-auto flex items-center gap-6 px-8 py-3">
-          <StatPill label="Intercepted" value={interpolated.stats.toxic_intercepted} color="#ff2e2e" />
-          <StatPill label="Reinforced" value={interpolated.stats.value_reinforced} color="#00ffd5" />
+          <StatPill label="Intercepted" value={interpolated.stats.toxic_intercepted} color="#9e6b6b" />
+          <StatPill label="Reinforced" value={interpolated.stats.value_reinforced} color="#5a6d5a" />
           <div className="ml-auto flex items-center gap-2">
-            <span className="font-display text-[10px] tracking-[0.15em] text-text-dim uppercase">
+            <span className="font-body text-[10px] tracking-wide text-text-dim uppercase">
               Rewiring
             </span>
-            <div className="w-16 h-1 rounded-full bg-white/[0.06] overflow-hidden">
+            <div className="w-16 h-1 rounded-full overflow-hidden bg-stone-300/50">
               <motion.div
                 className="h-full rounded-full"
-                style={{ background: 'linear-gradient(90deg, #1a6bff, #00ffd5)' }}
+                style={{ background: 'linear-gradient(90deg, #6b6560, #5a6d5a)' }}
                 animate={{ width: `${interpolated.stats.rewiring_pct}%` }}
                 transition={{ duration: 0.4 }}
               />
             </div>
-            <span className="font-display text-xs text-value tabular-nums w-7 text-right">
+            <span className="font-body text-xs text-value tabular-nums w-7 text-right font-medium">
               {interpolated.stats.rewiring_pct}%
             </span>
           </div>
@@ -85,20 +85,20 @@ export default function NeuralMap() {
         <div
           className="absolute bottom-4 left-6 rounded-lg border px-3 py-2.5 space-y-2 z-20"
           style={{
-            background: 'rgba(5, 5, 8, 0.85)',
-            borderColor: 'rgba(255, 255, 255, 0.05)',
-            backdropFilter: 'blur(12px)',
+            background: 'rgba(253, 250, 246, 0.88)',
+            borderColor: 'rgba(44, 38, 31, 0.12)',
+            backdropFilter: 'blur(10px)',
           }}
         >
-          <p className="font-display text-[8px] tracking-[0.2em] text-text-dim uppercase">
-            Node Types
+          <p className="font-body text-[10px] tracking-widest text-text-dim uppercase">
+            Node types
           </p>
           <div className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-value shadow-[0_0_6px_#00ffd540]" />
+            <div className="w-2.5 h-2.5 rounded-full bg-value" />
             <span className="text-[10px] text-text-muted">High-Value</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-toxic shadow-[0_0_6px_#ff2e2e30]" />
+            <div className="w-2.5 h-2.5 rounded-full bg-toxic" />
             <span className="text-[10px] text-text-muted">Toxic</span>
           </div>
           <div className="flex items-center gap-1.5">
@@ -114,7 +114,7 @@ export default function NeuralMap() {
       </div>
 
       {/* Timeline scrubber — centered */}
-      <div className="shrink-0 border-t border-white/[0.03]">
+      <div className="shrink-0 border-t border-stone-400/25">
         <div className="max-w-7xl mx-auto px-8 py-4">
           <TimelineScrubberInline
             progress={progress}
@@ -132,8 +132,8 @@ function StatPill({ label, value, color }: { label: string; value: number; color
   return (
     <div className="flex items-center gap-1.5">
       <div className="w-1.5 h-1.5 rounded-full" style={{ background: color }} />
-      <span className="font-display text-xs text-text-primary tabular-nums">{value}</span>
-      <span className="font-display text-[9px] text-text-dim tracking-wider uppercase">{label}</span>
+      <span className="font-body text-sm text-text-primary tabular-nums font-medium">{value}</span>
+      <span className="font-body text-[10px] text-text-dim tracking-wide uppercase">{label}</span>
     </div>
   );
 }
@@ -165,10 +165,10 @@ function TimelineScrubberInline({
   return (
     <div className="max-w-4xl mx-auto w-full">
       <div className="flex items-center justify-between mb-2">
-        <span className="font-display text-[10px] tracking-[0.15em] text-text-dim uppercase">
+        <span className="font-body text-[10px] tracking-wide text-text-dim uppercase">
           Timeline
         </span>
-        <span className="font-display text-xs tracking-widest text-text-muted uppercase">
+        <span className="font-body text-xs tracking-wide text-text-muted uppercase">
           {label}
         </span>
       </div>
@@ -188,19 +188,18 @@ function TimelineScrubberInline({
           dragging.current = false;
         }}
       >
-        <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-[2px] bg-white/[0.06] rounded-full" />
+        <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-[2px] bg-stone-400/40 rounded-full" />
         <div
           className="absolute top-1/2 -translate-y-1/2 left-0 h-[2px] rounded-full"
           style={{
             width: `${progress * 100}%`,
-            background: 'linear-gradient(90deg, #1a6bff, #00ffd5)',
-            boxShadow: '0 0 10px #00ffd530',
+            background: 'linear-gradient(90deg, #6b6560, #5a6d5a)',
           }}
         />
         {snapLabels.map((_, i) => (
           <div
             key={i}
-            className="absolute top-1/2 w-1.5 h-1.5 rounded-full bg-white/15"
+            className="absolute top-1/2 w-1.5 h-1.5 rounded-full bg-stone-500/35"
             style={{
               left: `${(i / (snapLabels.length - 1)) * 100}%`,
               transform: 'translate(-50%, -50%)',
@@ -211,8 +210,7 @@ function TimelineScrubberInline({
           <div
             className="w-4 h-4 rounded-full -translate-x-1/2 -translate-y-1/2"
             style={{
-              background: 'linear-gradient(135deg, #1a6bff, #00ffd5)',
-              boxShadow: '0 0 14px #00ffd560',
+              background: 'linear-gradient(135deg, #6b6560, #5a6d5a)',
             }}
           />
         </div>
@@ -223,7 +221,7 @@ function TimelineScrubberInline({
           <button
             key={i}
             onClick={() => onChange(i / (snapLabels.length - 1))}
-            className="font-display text-[9px] tracking-wider text-text-dim hover:text-value transition-colors"
+            className="font-body text-[10px] tracking-wide text-text-dim hover:text-text-primary transition-colors"
           >
             {lbl}
           </button>

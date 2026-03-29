@@ -85,15 +85,11 @@ void main() {
   float d2 = length(uv - c2);
   float d3 = length(uv - c3);
 
-  // Teal glow
-  vec3 col = vec3(0.0, 0.15, 0.13) * smoothstep(0.8, 0.0, d1);
-  // Blue glow
-  col += vec3(0.04, 0.08, 0.2) * smoothstep(0.7, 0.0, d2);
-  // Red dim glow
-  col += vec3(0.12, 0.02, 0.02) * smoothstep(0.6, 0.0, d3);
-
-  // Overall intensity — very subtle
-  col *= 0.35;
+  // Warm paper fog (sage + parchment)
+  vec3 col = vec3(0.12, 0.11, 0.09) * smoothstep(0.8, 0.0, d1);
+  col += vec3(0.08, 0.09, 0.08) * smoothstep(0.7, 0.0, d2);
+  col += vec3(0.10, 0.07, 0.07) * smoothstep(0.6, 0.0, d3);
+  col *= 0.12;
 
   fragColor = vec4(col, 1.0);
 }`;
@@ -153,17 +149,17 @@ export default function WebGLBackground() {
       particleData[off + 1] = Math.random(); // y
       particleData[off + 2] = Math.random() * 15 + 3; // size
 
-      const isValue = Math.random() > 0.35;
+      const isValue = Math.random() > 0.4;
       if (isValue) {
-        particleData[off + 3] = 0;                              // r
-        particleData[off + 4] = 0.6 + Math.random() * 0.4;     // g
-        particleData[off + 5] = 0.5 + Math.random() * 0.33;    // b
+        particleData[off + 3] = 0.35 + Math.random() * 0.15;
+        particleData[off + 4] = 0.42 + Math.random() * 0.18;
+        particleData[off + 5] = 0.36 + Math.random() * 0.12;
       } else {
-        particleData[off + 3] = 0.3 + Math.random() * 0.3;     // r
-        particleData[off + 4] = 0.05;                           // g
-        particleData[off + 5] = 0.05;                           // b
+        particleData[off + 3] = 0.45 + Math.random() * 0.2;
+        particleData[off + 4] = 0.35 + Math.random() * 0.12;
+        particleData[off + 5] = 0.34 + Math.random() * 0.1;
       }
-      particleData[off + 6] = Math.random() * 0.15 + 0.03;  // alpha
+      particleData[off + 6] = Math.random() * 0.08 + 0.02;
       particleData[off + 7] = Math.random();                  // phase
     }
 

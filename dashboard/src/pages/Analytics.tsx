@@ -23,8 +23,8 @@ export default function Analytics() {
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
-          className="w-10 h-10 border border-value/30 rounded-full"
-          style={{ borderTopColor: '#00ffd5' }}
+          className="w-10 h-10 border rounded-full border-stone-300"
+          style={{ borderTopColor: '#5a6d5a' }}
         />
       </div>
     );
@@ -74,8 +74,8 @@ export default function Analytics() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <h2 className="font-display text-xl tracking-[0.1em] text-text-primary uppercase mb-1">
-            Attention Analytics
+          <h2 className="font-body text-xl font-medium tracking-tight text-text-primary mb-1">
+            Attention analytics
           </h2>
           <p className="text-sm text-text-muted">
             Track how your watchtime shifts from toxic to positive over 30 days.
@@ -122,14 +122,13 @@ export default function Analytics() {
           transition={{ delay: 0.2, duration: 0.5 }}
           className="rounded-xl border overflow-hidden"
           style={{
-            background:
-              'linear-gradient(135deg, rgba(12, 12, 20, 0.6), rgba(10, 10, 18, 0.4))',
-            borderColor: 'rgba(255, 255, 255, 0.04)',
+            background: 'rgba(253, 250, 246, 0.55)',
+            borderColor: 'rgba(44, 38, 31, 0.1)',
           }}
         >
           <div className="px-5 pt-5 pb-2">
-            <h3 className="font-display text-xs tracking-[0.15em] text-text-muted uppercase">
-              Watchtime Distribution
+            <h3 className="font-body text-xs tracking-wide text-text-muted uppercase">
+              Watchtime distribution
             </h3>
           </div>
           <AttentionChart data={watchtime} />
@@ -143,13 +142,12 @@ export default function Analytics() {
             transition={{ delay: 0.3, duration: 0.5 }}
             className="rounded-xl border p-5"
             style={{
-              background:
-                'linear-gradient(135deg, rgba(12, 12, 20, 0.6), rgba(10, 10, 18, 0.4))',
-              borderColor: 'rgba(0, 255, 213, 0.06)',
+              background: 'rgba(253, 250, 246, 0.55)',
+              borderColor: 'rgba(90, 109, 90, 0.2)',
             }}
           >
-            <h3 className="font-display text-xs tracking-[0.15em] text-value uppercase mb-4">
-              Value Concepts — Growing
+            <h3 className="font-body text-xs tracking-wide text-value uppercase mb-4 font-medium">
+              Value concepts — growing
             </h3>
             <div className="space-y-2.5">
               {valueEvolution.map((item) => (
@@ -171,13 +169,12 @@ export default function Analytics() {
             transition={{ delay: 0.4, duration: 0.5 }}
             className="rounded-xl border p-5"
             style={{
-              background:
-                'linear-gradient(135deg, rgba(12, 12, 20, 0.6), rgba(10, 10, 18, 0.4))',
-              borderColor: 'rgba(255, 46, 46, 0.06)',
+              background: 'rgba(253, 250, 246, 0.55)',
+              borderColor: 'rgba(158, 107, 107, 0.22)',
             }}
           >
-            <h3 className="font-display text-xs tracking-[0.15em] text-toxic uppercase mb-4">
-              Toxic Patterns — Declining
+            <h3 className="font-body text-xs tracking-wide text-toxic uppercase mb-4 font-medium">
+              Toxic patterns — declining
             </h3>
             <div className="space-y-2.5">
               {toxicEvolution.map((item) => (
@@ -213,21 +210,20 @@ function MetricCard({
     <div
       className="rounded-xl border p-4"
       style={{
-        background:
-          'linear-gradient(135deg, rgba(12, 12, 20, 0.6), rgba(10, 10, 18, 0.4))',
-        borderColor: 'rgba(255, 255, 255, 0.04)',
+        background: 'rgba(253, 250, 246, 0.55)',
+        borderColor: 'rgba(44, 38, 31, 0.1)',
       }}
     >
-      <p className="font-display text-[9px] tracking-[0.15em] text-text-dim uppercase mb-2">
+      <p className="font-body text-[10px] tracking-wide text-text-dim uppercase mb-2">
         {label}
       </p>
-      <p className="font-display text-2xl text-text-primary tabular-nums">
+      <p className="font-body text-2xl text-text-primary tabular-nums font-medium">
         {value}
       </p>
       {delta && (
         <p
-          className="font-display text-xs mt-1 tabular-nums"
-          style={{ color: positive ? '#00ffd5' : '#ff2e2e' }}
+          className="font-body text-xs mt-1 tabular-nums"
+          style={{ color: positive ? '#5a6d5a' : '#9e6b6b' }}
         >
           {delta} over 30d
         </p>
@@ -249,15 +245,15 @@ function ConceptRow({
   delta: number;
   color: 'value' | 'toxic';
 }) {
-  const barColor = color === 'value' ? '#00ffd5' : '#ff2e2e';
-  const isGrowth = delta > 0;
+  const barColor = color === 'value' ? '#5a6d5a' : '#9e6b6b';
+  const deltaPositive = color === 'value' ? delta > 0 : delta < 0;
 
   return (
     <div className="flex items-center gap-3">
       <span className="text-xs text-text-muted w-32 truncate shrink-0">
         {name}
       </span>
-      <div className="flex-1 h-1 rounded-full bg-white/[0.04] overflow-hidden relative">
+      <div className="flex-1 h-1 rounded-full bg-stone-400/30 overflow-hidden relative">
         <div
           className="absolute inset-y-0 left-0 rounded-full opacity-20"
           style={{ width: `${before}%`, background: barColor }}
@@ -271,8 +267,8 @@ function ConceptRow({
         />
       </div>
       <span
-        className="font-display text-[10px] tabular-nums w-10 text-right shrink-0"
-        style={{ color: isGrowth ? '#00ffd5' : '#ff2e2e' }}
+        className="font-body text-[10px] tabular-nums w-10 text-right shrink-0 font-medium"
+        style={{ color: deltaPositive ? '#5a6d5a' : '#9e6b6b' }}
       >
         {delta > 0 ? '+' : ''}
         {delta}%

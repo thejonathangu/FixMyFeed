@@ -1,10 +1,12 @@
 {
   "manifest_version": 3,
-  "name": "Shadow-Scroll",
+  "name": "FixMyFeed",
   "version": "1.0",
-  "description": "Algorithmic auto-scroller",
+  "description": "Feed filtering and attention tools",
   "permissions": ["activeTab", "scripting", "storage"],
   "host_permissions": [
+    "https://fonts.googleapis.com/*",
+    "https://fonts.gstatic.com/*",
     "https://www.tiktok.com/*",
     "https://www.instagram.com/*",
     "https://musjoqntygjpxxlmibqr.supabase.co/*",

@@ -1,30 +1,29 @@
 @import "tailwindcss";
 
 @theme {
-  --color-void: #050508;
-  --color-void-light: #0a0a12;
-  --color-abyss: #0d0d1a;
-  --color-toxic: #ff2e2e;
-  --color-toxic-dim: #4a1515;
-  --color-toxic-dead: #2a2a2e;
-  --color-value: #00ffd5;
-  --color-value-bright: #00ffaa;
-  --color-value-glow: #00ffd580;
-  --color-synapse: #1a6bff;
-  --color-synapse-glow: #1a6bff40;
-  --color-overlay-bg: #0a0a1299;
-  --color-overlay-border: #ffffff0d;
-  --color-text-primary: #e8e8f0;
-  --color-text-muted: #6a6a80;
-  --color-text-dim: #3a3a50;
-  --color-surface: #0c0c14;
-  --color-surface-hover: #12121e;
+  /* Paper / ink palette */
+  --color-void: #ebe4d8;
+  --color-void-light: #f5f0ea;
+  --color-abyss: #e5ddd0;
+  --color-toxic: #9e6b6b;
+  --color-toxic-dim: #8f6363;
+  --color-toxic-dead: #948878;
+  --color-value: #5a6d5a;
+  --color-value-bright: #6a7f6a;
+  --color-value-glow: #5a6d5a35;
+  --color-synapse: #6b6560;
+  --color-synapse-glow: #6b656022;
+  --color-overlay-bg: #fdfaf5e8;
+  --color-overlay-border: #2c241618;
+  --color-text-primary: #2c261f;
+  --color-text-muted: #6b6458;
+  --color-text-dim: #8a8274;
+  --color-surface: #fdfaf6;
+  --color-surface-hover: #f5efe6;
 
-  --font-display: "Departure Mono", monospace;
+  --font-display: "Nothing You Could Do", cursive;
   --font-body: "DM Sans", sans-serif;
 }
-
-/* Tailwind preflight natively handles margin and padding resets */
 
 html {
   scroll-behavior: smooth;
@@ -35,28 +34,41 @@ body,
 #root {
   width: 100%;
   min-height: 100%;
-  background: var(--color-void);
   color: var(--color-text-primary);
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
+  background-color: var(--color-void-light);
+  background-image: url("./assets/paper.jpg");
+  background-size: 480px auto;
+  background-repeat: repeat;
+  background-attachment: fixed;
 }
 
-/* Film grain overlay */
-#root::after {
+/* Subtle vignette so texture doesn’t fight contrast */
+#root {
+  position: relative;
+}
+
+#root::before {
   content: "";
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 9999;
-  opacity: 0.03;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-  background-repeat: repeat;
-  mix-blend-mode: overlay;
+  z-index: 0;
+  background: radial-gradient(
+    ellipse 80% 70% at 50% 40%,
+    transparent 40%,
+    rgba(44, 38, 31, 0.04) 100%
+  );
 }
 
-/* Custom scrollbar */
+#root > * {
+  position: relative;
+  z-index: 1;
+}
+
 ::-webkit-scrollbar {
-  width: 5px;
+  width: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -66,7 +78,6 @@ body,
   border-radius: 3px;
 }
 
-/* Smooth canvas rendering */
 canvas {
   image-rendering: auto;
 }
