@@ -68,9 +68,11 @@ RULES:
 - Use WAIT for anything neutral or unclear.
 - Entertainment, humor, creative content related to interests = LIKE_AND_STAY
 - Score 5+ means interesting. Score -5 or below means toxic.
+- category_vector: 1-3 short category labels (e.g. ["tech", "humor"] or ["cooking", "tutorial", "vegan"]).
+- BRAINROT DETECTION: Content featuring pseudoscience conspiracies (piezoelectric floors, free energy, etc.), rage bait, meaningless viral trends, or low-effort engagement farming should be categorized with "brainrot" in category_vector and marked as SKIP if "brainrot" is in AVOID list.
 
 Respond with ONLY valid JSON:
-{"action": "SKIP" or "LIKE_AND_STAY" or "WAIT", "score": -20 to 20, "reason": "brief explanation"}"""
+{"action": "SKIP" or "LIKE_AND_STAY" or "WAIT", "score": -20 to 20, "reason": "brief explanation", "category_vector": ["cat1", "cat2"]}"""
 
     print("=" * 60)
     print(f"INTERESTS: {payload.interests}")
@@ -121,7 +123,12 @@ Respond with ONLY valid JSON:
 
         reason = str(result.get("reason", ""))[:100]
 
-        print(f"DECISION: {action} | score={score} | {reason}")
+        raw_vector = result.get("category_vector", [])
+        if not isinstance(raw_vector, list):
+            raw_vector = []
+        category_vector = [str(c)[:30] for c in raw_vector[:3]]
+
+        print(f"DECISION: {action} | score={score} | {reason} | categories={category_vector}")
 
     except Exception as e:
         import traceback
@@ -130,6 +137,7 @@ Respond with ONLY valid JSON:
         action = "WAIT"
         score = 0
         reason = "API Error - watching anyway"
+        category_vector = []
 
     if action == "SKIP":
         delay_ms = 1500
@@ -162,6 +170,7 @@ Respond with ONLY valid JSON:
         "reason": reason,
         "delay_ms": delay_ms,
         "compute_time_ms": compute_time_ms,
+        "category_vector": category_vector,
     }
 
 

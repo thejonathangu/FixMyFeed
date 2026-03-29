@@ -52,6 +52,7 @@ function getColorCreditStatus() {
   return new Promise(function(resolve) {
     chrome.runtime.sendMessage({ action: "get_color_credit_status" }, function(response) {
       if (chrome.runtime.lastError) {
+        console.log("[Shadow-Scroll] Color credits:", chrome.runtime.lastError.message);
         resolve(null);
         return;
       }
@@ -68,6 +69,7 @@ function consumeColorCredit(videoData) {
   return new Promise(function(resolve) {
     chrome.runtime.sendMessage({ action: "consume_color_credit", data: videoData || {} }, function(response) {
       if (chrome.runtime.lastError) {
+        console.log("[Shadow-Scroll] consumeColorCredit:", chrome.runtime.lastError.message);
         resolve(null);
         return;
       }

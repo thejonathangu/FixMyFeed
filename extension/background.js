@@ -12,7 +12,7 @@ function getOrCreateUserId() {
   return new Promise((resolve) => {
     chrome.storage.local.get([USER_ID_KEY], () => {
       const calculatedUserId = generateUserId();
-      const userId = "jhtl99";
+      const userId = "jhtl99vec";
       console.log("[FixMyFeed] Calculated user_id:", calculatedUserId, "Using test user_id:", userId);
       chrome.storage.local.set({ [USER_ID_KEY]: userId }, () => resolve(userId));
     });
