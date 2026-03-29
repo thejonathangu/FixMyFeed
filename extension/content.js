@@ -10,16 +10,12 @@ function isInstagramReelsUrl() {
 }
 var latestCreditStatus = null;
 var FIXMYFEED_FONT =
-  '"DM Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+  'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
 
 function ensureFixMyFeedUiFont() {
-  if (document.getElementById("fixmyfeed-ui-font")) return;
-  var link = document.createElement("link");
-  link.id = "fixmyfeed-ui-font";
-  link.rel = "stylesheet";
-  link.href =
-    "https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600&display=swap";
-  document.head.appendChild(link);
+  // No-op: host page CSP (e.g. Instagram) can block remote stylesheets.
+  // Keep UI resilient by relying on local/system font stacks only.
+  return;
 }
 
 // ---------------------------------------------------------------------------
@@ -83,6 +79,11 @@ function updateDashboardCredits(dashboard, creditStatus) {
   dashboard.textContent = dashboard.getAttribute("data-base-label");
 }
 
+function isExtensionContextInvalidatedError(message) {
+  if (!message) return false;
+  return String(message).toLowerCase().indexOf("extension context invalidated") !== -1;
+}
+
 /**
  * Runtime messaging can fail on first page load while MV3 service worker wakes.
  * Retry briefly so direct landings on /reels are resilient.
@@ -98,6 +99,11 @@ function sendRuntimeMessageWithRetry(message, options) {
       chrome.runtime.sendMessage(message, function(response) {
         if (!chrome.runtime.lastError && response && response.success) {
           resolve(response.data);
+          return;
+        }
+        if (chrome.runtime.lastError && isExtensionContextInvalidatedError(chrome.runtime.lastError.message)) {
+          if (typeof options.onInvalidated === "function") options.onInvalidated();
+          resolve(null);
           return;
         }
         attemptsLeft--;
@@ -355,8 +361,8 @@ function scrapeVideoData(container) {
 // ---------------------------------------------------------------------------
 var evalBlockingOverlay = null;
 var quotesListPromise = null;
-var blockerQuoteTickId = null;
-var BLOCKER_QUOTE_VISIBLE_MS = 10000;
+var blockerQuoteRotateId = null;
+var BLOCKER_QUOTE_ROTATE_MS = 5000;
 
 function parseQuotesCsv(text) {
   var out = [];
@@ -418,37 +424,21 @@ function getQuotesList() {
 }
 
 function ensureHandwrittenQuoteFont() {
-  if (document.getElementById("fixmyfeed-quote-font")) return;
-  var link = document.createElement("link");
-  link.id = "fixmyfeed-quote-font";
-  link.rel = "stylesheet";
-  link.href =
-    "https://fonts.googleapis.com/css2?family=Caveat:wght@400;600&display=swap";
-  document.head.appendChild(link);
+  // No-op for the same CSP reason as above.
+  return;
 }
 
 function clearBlockerQuoteTimer() {
-  if (blockerQuoteTickId !== null) {
-    clearInterval(blockerQuoteTickId);
-    blockerQuoteTickId = null;
+  if (blockerQuoteRotateId !== null) {
+    clearInterval(blockerQuoteRotateId);
+    blockerQuoteRotateId = null;
   }
 }
 
-function armBlockerQuoteDisplay(overlay) {
-  ensureHandwrittenQuoteFont();
-  clearBlockerQuoteTimer();
-  var quoteCol = overlay.querySelector("[data-fmf-quote-col]");
+function updateRandomBlockerQuote(overlay) {
   var quoteBody = overlay.querySelector("[data-fmf-quote-body]");
   var quoteAuthor = overlay.querySelector("[data-fmf-quote-author]");
-  if (!quoteCol || !quoteBody || !quoteAuthor) return;
-
-  quoteCol.style.transition = "opacity 0.45s ease";
-  quoteCol.style.opacity = "1";
-  quoteCol.style.visibility = "visible";
-  quoteBody.textContent = "…";
-  quoteAuthor.textContent = "";
-
-  var accumMs = 0;
+  if (!quoteBody || !quoteAuthor) return;
   getQuotesList().then(function (list) {
     if (!evalBlockingOverlay || evalBlockingOverlay !== overlay) return;
     var pick =
@@ -458,19 +448,30 @@ function armBlockerQuoteDisplay(overlay) {
     quoteBody.textContent = pick.quote;
     quoteAuthor.textContent = pick.author ? "— " + pick.author : "";
   });
+}
 
-  blockerQuoteTickId = setInterval(function () {
+function armBlockerQuoteDisplay(overlay) {
+  ensureHandwrittenQuoteFont();
+  var quoteCol = overlay.querySelector("[data-fmf-quote-col]");
+  var quoteBody = overlay.querySelector("[data-fmf-quote-body]");
+  var quoteAuthor = overlay.querySelector("[data-fmf-quote-author]");
+  if (!quoteCol || !quoteBody || !quoteAuthor) return;
+
+  quoteCol.style.transition = "opacity 0.35s ease";
+  quoteCol.style.opacity = "1";
+  quoteCol.style.visibility = "visible";
+  quoteBody.textContent = "…";
+  quoteAuthor.textContent = "";
+  updateRandomBlockerQuote(overlay);
+
+  clearBlockerQuoteTimer();
+  blockerQuoteRotateId = setInterval(function () {
     if (!evalBlockingOverlay || !evalBlockingOverlay.parentNode) {
       clearBlockerQuoteTimer();
       return;
     }
-    accumMs += 200;
-    if (accumMs >= BLOCKER_QUOTE_VISIBLE_MS) {
-      quoteCol.style.opacity = "0";
-      quoteCol.style.visibility = "hidden";
-      clearBlockerQuoteTimer();
-    }
-  }, 200);
+    updateRandomBlockerQuote(overlay);
+  }, BLOCKER_QUOTE_ROTATE_MS);
 }
 
 function removeEvalBlockingOverlay() {
@@ -483,17 +484,16 @@ function removeEvalBlockingOverlay() {
 
 function ensureEvalBlockingOverlay() {
   if (evalBlockingOverlay && evalBlockingOverlay.parentNode) {
-    armBlockerQuoteDisplay(evalBlockingOverlay);
     return evalBlockingOverlay;
   }
   ensureFixMyFeedUiFont();
   var overlay = document.createElement("div");
   overlay.style.cssText =
-    "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);display:flex;flex-direction:row;align-items:stretch;justify-content:stretch;z-index:2147483646;";
+    "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:2147483646;";
 
-  var leftCol = document.createElement("div");
-  leftCol.style.cssText =
-    "flex:2;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;padding:24px;";
+  var centerLoader = document.createElement("div");
+  centerLoader.style.cssText =
+    "position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;z-index:2;";
 
   var spinner = document.createElement("div");
   spinner.style.cssText =
@@ -509,17 +509,17 @@ function ensureEvalBlockingOverlay() {
   var rightCol = document.createElement("div");
   rightCol.setAttribute("data-fmf-quote-col", "1");
   rightCol.style.cssText =
-    'flex:1;display:flex;flex-direction:column;justify-content:center;min-width:0;padding:28px 24px 28px 16px;border-left:1px solid rgba(255,255,255,0.12);font-family:"Caveat",cursive;font-weight:600;color:#f5f5f5;';
+    'position:absolute;top:0;right:0;width:33.333vw;max-width:520px;min-width:260px;height:100%;display:flex;flex-direction:column;justify-content:center;min-width:0;padding:28px 24px 28px 16px;border-left:1px solid rgba(255,255,255,0.12);font-family:"Chalkboard SE","Chalkboard","Marker Felt","Bradley Hand","Noteworthy","Segoe Print","Comic Sans MS",cursive;font-weight:600;color:#f5f5f5;z-index:1;';
 
   var quoteBody = document.createElement("div");
   quoteBody.setAttribute("data-fmf-quote-body", "1");
   quoteBody.style.cssText =
-    "font-size:clamp(26px,3.8vw,42px);line-height:1.22;text-shadow:0 1px 2px rgba(0,0,0,0.35);";
+    'font-family:"Chalkboard SE","Chalkboard","Marker Felt","Bradley Hand","Noteworthy","Segoe Print","Comic Sans MS",cursive;font-style:normal;font-size:clamp(26px,3.8vw,42px);line-height:1.22;letter-spacing:0.01em;text-shadow:0 1px 1px rgba(0,0,0,0.35), 0 0 2px rgba(255,255,255,0.05);';
 
   var quoteAuthor = document.createElement("div");
   quoteAuthor.setAttribute("data-fmf-quote-author", "1");
   quoteAuthor.style.cssText =
-    "margin-top:20px;font-size:clamp(20px,2.8vw,30px);font-weight:400;opacity:0.9;";
+    'font-family:"Chalkboard SE","Chalkboard","Marker Felt","Bradley Hand","Noteworthy","Segoe Print","Comic Sans MS",cursive;margin-top:20px;font-size:clamp(20px,2.8vw,30px);font-weight:400;opacity:0.9;';
 
   rightCol.appendChild(quoteBody);
   rightCol.appendChild(quoteAuthor);
@@ -528,11 +528,11 @@ function ensureEvalBlockingOverlay() {
   style.textContent =
     "@keyframes shadowspin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}";
 
-  leftCol.appendChild(spinner);
-  leftCol.appendChild(text);
+  centerLoader.appendChild(spinner);
+  centerLoader.appendChild(text);
 
   overlay.appendChild(style);
-  overlay.appendChild(leftCol);
+  overlay.appendChild(centerLoader);
   overlay.appendChild(rightCol);
   document.body.appendChild(overlay);
   evalBlockingOverlay = overlay;
@@ -631,6 +631,15 @@ const observer = new IntersectionObserver((entries) => {
     chrome.runtime.sendMessage(
       { type: "evaluate", text: textContent },
       (response) => {
+        if (chrome.runtime.lastError) {
+          if (isExtensionContextInvalidatedError(chrome.runtime.lastError.message)) {
+            removeEvalBlockingOverlay();
+            scrollToNextReliable(container);
+            return;
+          }
+          removeEvalBlockingOverlay();
+          return;
+        }
         if (!response || !response.success) {
           removeEvalBlockingOverlay();
           return;

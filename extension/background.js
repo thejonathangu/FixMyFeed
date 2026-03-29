@@ -8,6 +8,14 @@ function generateUserId() {
   return "user_" + Math.random().toString(36).slice(2, 12);
 }
 
+function normalizeUserId(raw) {
+  const v = String(raw == null ? "" : raw).trim();
+  if (!v) return "";
+  if (v.length < 3 || v.length > 64) return "";
+  if (!/^[A-Za-z0-9_-]+$/.test(v)) return "";
+  return v;
+}
+
 function getOrCreateUserId() {
   return new Promise((resolve) => {
     chrome.storage.local.get([USER_ID_KEY], (result) => {
@@ -246,6 +254,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       toxic: message.toxic,
     }, () => {
       sendResponse({ success: true });
+    });
+    return true;
+  }
+
+  if (message.type === "setUserId") {
+    const next = normalizeUserId(message.user_id);
+    if (!next) {
+      sendResponse({
+        success: false,
+        error: "User ID must be 3-64 chars (letters, numbers, _ or -)."
+      });
+      return false;
+    }
+    chrome.storage.local.set({ [USER_ID_KEY]: next }, () => {
+      syncParentalSettings()
+        .then(() => sendResponse({ success: true, data: { user_id: next } }))
+        .catch(() => sendResponse({ success: true, data: { user_id: next } }));
     });
     return true;
   }
