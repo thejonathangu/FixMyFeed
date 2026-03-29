@@ -34,11 +34,29 @@ const staggerItem = {
 export default function Analytics() {
   const [watchtime, setWatchtime] = useState<WatchtimePoint[] | null>(null);
   const [snapshots, setSnapshots] = useState<Snapshot[] | null>(null);
+  const [userId, setUserId] = useState<string>('');
+  const [isRealData, setIsRealData] = useState(false);
 
   useEffect(() => {
-    fetchWatchtimeData().then(setWatchtime);
-    fetchEvolvingDopamineStats().then((d) => setSnapshots(d.snapshots));
+    const stored = localStorage.getItem('fixmyfeed_user_id') || '';
+    setUserId(stored);
+    
+    fetchWatchtimeData(stored).then(setWatchtime);
+    fetchEvolvingDopamineStats(stored).then((d) => {
+      setSnapshots(d.snapshots);
+      setIsRealData(stored !== '' && d.user_id !== 'demo');
+    });
   }, []);
+
+  const handleUserIdSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const input = form.elements.namedItem('userId') as HTMLInputElement;
+    if (input.value.trim()) {
+      localStorage.setItem('fixmyfeed_user_id', input.value.trim());
+      window.location.reload();
+    }
+  };
 
   if (!watchtime || !snapshots) {
     return (
@@ -95,14 +113,69 @@ export default function Analytics() {
       initial="hidden"
       animate="show"
     >
+      {/* User ID prompt banner when no user or demo data */}
+      {!isRealData && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mx-6 sm:mx-10 mt-6 px-4 py-3 rounded-xl border"
+          style={{
+            background: 'linear-gradient(90deg, rgba(181, 132, 61, 0.12), rgba(253, 250, 246, 0.9))',
+            borderColor: 'rgba(181, 132, 61, 0.25)',
+          }}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span style={{ color: '#b5843d' }}>⚡</span>
+              <span className="font-body text-xs text-text-primary">
+                {userId ? 'Showing demo data — no events found' : 'Enter your User ID to see real analytics'}
+              </span>
+            </div>
+            <form onSubmit={handleUserIdSubmit} className="flex gap-2">
+              <input
+                name="userId"
+                type="text"
+                defaultValue={userId}
+                placeholder="User ID from extension"
+                className="px-3 py-1.5 rounded-lg border font-body text-xs w-48"
+                style={{
+                  borderColor: 'rgba(44, 38, 31, 0.15)',
+                  background: 'white',
+                }}
+              />
+              <button
+                type="submit"
+                className="px-3 py-1.5 rounded-lg font-body text-xs font-medium"
+                style={{
+                  background: '#b5843d',
+                  color: 'white',
+                }}
+              >
+                Load
+              </button>
+            </form>
+          </div>
+        </motion.div>
+      )}
+
       <div className="max-w-6xl mx-auto px-6 sm:px-10 py-8 sm:py-10 space-y-9">
-        <motion.div variants={staggerItem}>
-          <h2 className="font-body text-xl font-medium tracking-tight text-text-primary mb-1">
-            Attention analytics
-          </h2>
-          <p className="text-sm text-text-muted">
-            Track how your watchtime shifts from toxic to positive over 30 days.
-          </p>
+        <motion.div variants={staggerItem} className="flex items-start justify-between">
+          <div>
+            <h2 className="font-body text-xl font-medium tracking-tight text-text-primary mb-1">
+              Attention analytics
+            </h2>
+            <p className="text-sm text-text-muted">
+              Track how your watchtime shifts from toxic to positive over time.
+            </p>
+          </div>
+          {isRealData && (
+            <span
+              className="px-2 py-1 rounded-full font-body text-[10px] uppercase tracking-wide"
+              style={{ background: 'rgba(78, 119, 84, 0.15)', color: GREEN }}
+            >
+              Live Data
+            </span>
+          )}
         </motion.div>
 
         <motion.div

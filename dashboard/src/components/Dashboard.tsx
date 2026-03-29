@@ -38,9 +38,9 @@ export default function Dashboard() {
     const form = e.currentTarget;
     const input = form.elements.namedItem('userId') as HTMLInputElement;
     if (input.value.trim()) {
-      setUserId(input.value.trim());
-      localStorage.setItem('fixmyfeed_user_id', input.value.trim());
-      setShowUserInput(false);
+      const newId = input.value.trim();
+      localStorage.setItem('fixmyfeed_user_id', newId);
+      window.location.reload();
     }
   };
 

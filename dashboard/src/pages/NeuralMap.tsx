@@ -15,10 +15,28 @@ const GREEN = '#4e7754';
 export default function NeuralMap() {
   const [snapshots, setSnapshots] = useState<Snapshot[] | null>(null);
   const [progress, setProgress] = useState(0);
+  const [userId, setUserId] = useState<string>('');
+  const [isRealData, setIsRealData] = useState(false);
 
   useEffect(() => {
-    fetchEvolvingDopamineStats().then((data) => setSnapshots(data.snapshots));
+    const stored = localStorage.getItem('fixmyfeed_user_id') || '';
+    setUserId(stored);
+    
+    fetchEvolvingDopamineStats(stored).then((data) => {
+      setSnapshots(data.snapshots);
+      setIsRealData(stored !== '' && data.user_id !== 'demo');
+    });
   }, []);
+
+  const handleUserIdSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const input = form.elements.namedItem('userId') as HTMLInputElement;
+    if (input.value.trim()) {
+      localStorage.setItem('fixmyfeed_user_id', input.value.trim());
+      window.location.reload();
+    }
+  };
 
   const interpolated = useMemo(() => {
     if (!snapshots) return null;
@@ -57,6 +75,65 @@ export default function NeuralMap() {
 
   return (
     <div className="flex flex-col h-full">
+      {/* User ID prompt banner when no user or demo data */}
+      {!isRealData && (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="shrink-0 px-4 py-3 border-b"
+          style={{
+            background: 'linear-gradient(90deg, rgba(181, 132, 61, 0.12), rgba(253, 250, 246, 0.9))',
+            borderColor: 'rgba(181, 132, 61, 0.25)',
+          }}
+        >
+          <div className="max-w-4xl mx-auto flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span style={{ color: '#b5843d' }}>⚡</span>
+              <span className="font-body text-xs text-text-primary">
+                {userId ? 'Showing demo data — no events found for this user' : 'Enter your User ID to see your real neural map'}
+              </span>
+            </div>
+            <form onSubmit={handleUserIdSubmit} className="flex gap-2">
+              <input
+                name="userId"
+                type="text"
+                defaultValue={userId}
+                placeholder="User ID from extension"
+                className="px-3 py-1.5 rounded-lg border font-body text-xs w-48"
+                style={{
+                  borderColor: 'rgba(44, 38, 31, 0.15)',
+                  background: 'white',
+                }}
+              />
+              <button
+                type="submit"
+                className="px-3 py-1.5 rounded-lg font-body text-xs font-medium"
+                style={{
+                  background: '#b5843d',
+                  color: 'white',
+                }}
+              >
+                Load
+              </button>
+            </form>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Real data indicator */}
+      {isRealData && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="absolute top-2 right-2 z-30 px-2 py-1 rounded-full"
+          style={{ background: 'rgba(78, 119, 84, 0.15)' }}
+        >
+          <span className="font-body text-[10px] uppercase tracking-wide" style={{ color: GREEN }}>
+            Live Data
+          </span>
+        </motion.div>
+      )}
+
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -118,15 +195,15 @@ export default function NeuralMap() {
           </p>
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 rounded-full bg-value shrink-0" />
-            <span className="text-[11px] text-text-muted">High-Value</span>
+            <span className="text-[11px] text-text-muted">High-Value (LIKE)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: '#b5843d' }} />
+            <span className="text-[11px] text-text-muted">Neutral (WAIT)</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 rounded-full bg-toxic shrink-0" />
-            <span className="text-[11px] text-text-muted">Toxic</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full bg-toxic-dead shrink-0" />
-            <span className="text-[11px] text-text-muted">Neutralized</span>
+            <span className="text-[11px] text-text-muted">Toxic (SKIP)</span>
           </div>
         </motion.div>
 

@@ -3,7 +3,7 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 export interface NodeData {
   id: string;
   weight: number;
-  category: 'toxic' | 'value';
+  category: 'toxic' | 'value' | 'neutral';
   theme_name: string;
   description: string;
   x: number;
@@ -77,7 +77,7 @@ function seededRandom(seed: string): () => number {
 
 interface ThemeData {
   name: string;
-  category: 'value' | 'toxic';
+  category: 'value' | 'toxic' | 'neutral';
   count: number;
   firstSeen: number;
   lastSeen: number;
@@ -90,10 +90,14 @@ function extractThemesFromEvents(events: EventRecord[]): Map<string, ThemeData> 
   events.forEach((event, idx) => {
     const isValue = event.action_type === 'LIKE_AND_STAY';
     const isToxic = event.action_type === 'SKIP';
-    if (!isValue && !isToxic) return;
+    const isNeutral = event.action_type === 'WAIT';
+    
+    if (!isValue && !isToxic && !isNeutral) return;
     
     const themes = event.deep_analysis?.themes || event.category_vector || [];
     const trigger = event.deep_analysis?.dopamine_trigger || 'unknown';
+    
+    const category: 'value' | 'toxic' | 'neutral' = isValue ? 'value' : isToxic ? 'toxic' : 'neutral';
     
     for (const theme of themes) {
       if (!theme || theme.length < 2) continue;
@@ -105,10 +109,16 @@ function extractThemesFromEvents(events: EventRecord[]): Map<string, ThemeData> 
         if (!existing.triggers.includes(trigger)) {
           existing.triggers.push(trigger);
         }
+        // Upgrade category: value > neutral > toxic
+        if (category === 'value') {
+          existing.category = 'value';
+        } else if (category === 'neutral' && existing.category === 'toxic') {
+          existing.category = 'neutral';
+        }
       } else {
         themeMap.set(theme, {
           name: theme,
-          category: isValue ? 'value' : 'toxic',
+          category,
           count: 1,
           firstSeen: idx,
           lastSeen: idx,
@@ -131,19 +141,26 @@ function buildNodesAtTime(
   const valueThemes = Array.from(themes.values())
     .filter(t => t.category === 'value')
     .sort((a, b) => b.count - a.count)
-    .slice(0, 15);
+    .slice(0, 12);
   
   const toxicThemes = Array.from(themes.values())
     .filter(t => t.category === 'toxic')
     .sort((a, b) => b.count - a.count)
-    .slice(0, 15);
+    .slice(0, 12);
+  
+  const neutralThemes = Array.from(themes.values())
+    .filter(t => t.category === 'neutral')
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
   
   const maxCount = Math.max(
     ...valueThemes.map(t => t.count),
     ...toxicThemes.map(t => t.count),
+    ...neutralThemes.map(t => t.count),
     1
   );
   
+  // Toxic themes: start central, drift outward
   toxicThemes.forEach((theme, i) => {
     const rng = seededRandom(theme.name);
     const baseWeight = (theme.count / maxCount) * 0.7 + 0.3;
@@ -168,6 +185,35 @@ function buildNodesAtTime(
     });
   });
   
+  // Neutral themes: drift from outer to middle ring over time
+  neutralThemes.forEach((theme, i) => {
+    const rng = seededRandom(theme.name);
+    const baseWeight = (theme.count / maxCount) * 0.5 + 0.2;
+    const weight = baseWeight + timeProgress * 0.15; // Slight growth over time
+    
+    const angle = (i / Math.max(neutralThemes.length, 1)) * Math.PI * 2 + rng() * 0.4 + Math.PI / 4;
+    // Start at outer ring, drift to middle ring
+    const startRadius = 0.35 + rng() * 0.08;
+    const endRadius = 0.18 + rng() * 0.06;
+    const radius = startRadius + (endRadius - startRadius) * timeProgress;
+    
+    nodes.push({
+      id: `neutral-${i}`,
+      weight,
+      category: 'neutral',
+      theme_name: theme.name,
+      description: `Seen ${theme.count}x | ${theme.triggers.slice(0, 2).join(', ')}`,
+      x: 0.5 + Math.cos(angle) * radius,
+      y: 0.5 + Math.sin(angle) * radius,
+      z: (rng() - 0.5) * 0.3,
+      connections: neutralThemes
+        .filter((_, j) => j !== i && Math.abs(j - i) <= 2)
+        .slice(0, 2)
+        .map((_, j) => `neutral-${j}`),
+    });
+  });
+  
+  // Value themes: start scattered, cluster to center
   valueThemes.forEach((theme, i) => {
     const rng = seededRandom(theme.name);
     const baseWeight = (theme.count / maxCount) * 0.5 + 0.15;
@@ -332,23 +378,36 @@ export async function fetchEvolvingDopamineStats(userId?: string): Promise<Evolv
     userId = localStorage.getItem('fixmyfeed_user_id') || '';
   }
   
+  console.log('[DataService] Fetching stats for userId:', userId);
+  
   if (userId) {
     try {
       const response = await fetch(`${API_BASE}/stats/${userId}`);
+      console.log('[DataService] Response status:', response.status);
+      
       if (response.ok) {
         const data: StatsData = await response.json();
+        console.log('[DataService] Events count:', data.events?.length);
+        
         if (data.events && data.events.length >= 5) {
+          const themes = extractThemesFromEvents(data.events);
+          console.log('[DataService] Extracted themes:', themes.size);
+          
           const snapshots = generateSnapshotsFromEvents(data.events);
+          console.log('[DataService] Generated snapshots:', snapshots.length);
+          
           if (snapshots.length > 0) {
+            console.log('[DataService] Returning REAL data');
             return { user_id: userId, snapshots };
           }
         }
       }
     } catch (err) {
-      console.warn('Could not fetch real data:', err);
+      console.error('[DataService] Error fetching:', err);
     }
   }
   
+  console.log('[DataService] Falling back to DEMO data');
   await new Promise(r => setTimeout(r, 200));
   return { user_id: userId || 'demo', snapshots: generateDemoSnapshots() };
 }

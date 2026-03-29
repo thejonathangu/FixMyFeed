@@ -557,9 +557,9 @@ def get_stats(user_id: str):
         liked = sum(1 for e in events if e.get("action_type") == "LIKE_AND_STAY")
         waited = sum(1 for e in events if e.get("action_type") == "WAIT")
         
-        total_watch_time = sum(e.get("duration_ms", 0) for e in events)
+        total_watch_time = sum(e.get("duration_ms") or 0 for e in events)
         positive_watch_time = sum(
-            e.get("duration_ms", 0) for e in events 
+            (e.get("duration_ms") or 0) for e in events 
             if e.get("action_type") == "LIKE_AND_STAY"
         )
         

@@ -59,11 +59,17 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
 
   const getRadius = (weight: number) => 8 + weight * 30;
 
-  const getColor = (category: 'toxic' | 'value', weight: number, alpha = 1) => {
+  const getColor = (category: 'toxic' | 'value' | 'neutral', weight: number, alpha = 1) => {
     if (category === 'value') {
       const g = 109 + weight * 40;
       const b = 90 + weight * 35;
       return `rgba(90, ${Math.round(g)}, ${Math.round(b)}, ${alpha})`;
+    }
+    if (category === 'neutral') {
+      const r = 180 + weight * 30;
+      const g = 140 + weight * 20;
+      const b = 60 + weight * 20;
+      return `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, ${alpha})`;
     }
     const r = 120 + weight * 70;
     const g = 90 + weight * 25;
@@ -477,6 +483,8 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
                 borderColor:
                   hovered.node.category === 'value'
                     ? 'rgba(78, 119, 84, 0.35)'
+                    : hovered.node.category === 'neutral'
+                    ? 'rgba(181, 132, 61, 0.35)'
                     : 'rgba(168, 96, 99, 0.35)',
                 backdropFilter: 'blur(10px)',
               }}
@@ -484,10 +492,10 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
               <p
                 className="font-body text-[10px] tracking-wide uppercase mb-0.5 font-medium"
                 style={{
-                  color: hovered.node.category === 'value' ? '#4e7754' : '#a86063',
+                  color: hovered.node.category === 'value' ? '#4e7754' : hovered.node.category === 'neutral' ? '#b5843d' : '#a86063',
                 }}
               >
-                {hovered.node.category === 'value' ? 'High Value' : 'Toxic'}
+                {hovered.node.category === 'value' ? 'High Value' : hovered.node.category === 'neutral' ? 'Neutral' : 'Toxic'}
               </p>
               <p className="text-sm text-text-primary font-medium">
                 {hovered.node.theme_name}

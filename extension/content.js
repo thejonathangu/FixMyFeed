@@ -608,21 +608,6 @@ const observer = new IntersectionObserver((entries) => {
         }
       : Object.assign(scrapeVideoData(container), { platform: "tiktok" });
 
-    // TikTok candidate ping (background uses type: log_watch, not log_video).
-    if (!isIg) {
-      chrome.runtime.sendMessage({
-        type: "log_watch",
-        action_type: "candidate",
-        duration_ms: 0,
-        text_content:
-          (videoData.caption || "") +
-          (videoData.hashtags && videoData.hashtags.length
-            ? " " + videoData.hashtags.join(" ")
-            : ""),
-        category_vector: null,
-        deep_analysis: null
-      }, function() { if (chrome.runtime.lastError) {} });
-    }
     ensureEvalBlockingOverlay();
     
     // Track start time BEFORE API call
