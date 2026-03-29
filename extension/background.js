@@ -45,12 +45,56 @@ async function saveVideoEvent(videoData) {
   }
 }
 
+// ── Parental settings sync ────────────────────────────────────────────────────
+// Pulls parental_settings from Supabase and merges into chrome.storage.local
+// so the evaluate flow automatically uses parent-controlled keywords.
+
+async function syncParentalSettings() {
+  try {
+    const userId = await getOrCreateUserId();
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/parental_settings?user_id=eq.${encodeURIComponent(userId)}&limit=1`,
+      {
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+      }
+    );
+    if (!res.ok) return;
+    const rows = await res.json();
+    if (!rows || rows.length === 0) return;
+    const row = rows[0];
+
+    // Always sync keywords from Supabase if a row exists.
+    // parental_locked flag controls whether the popup can override them.
+    await chrome.storage.local.set({
+      interests: row.interests || [],
+      toxic: row.toxic_keywords || [],
+      parental_locked: row.locked === true,
+    });
+    console.log(`[FixMyFeed] Parental settings synced (locked=${row.locked}):`, row.interests);
+  } catch (e) {
+    console.warn("[FixMyFeed] Parental sync failed:", e);
+  }
+}
+
 chrome.runtime.onInstalled.addListener(() => {
-  getOrCreateUserId();
+  getOrCreateUserId().then(syncParentalSettings);
+  // Create a persistent alarm — survives service worker sleep
+  chrome.alarms.create("syncParental", { periodInMinutes: 1 });
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  getOrCreateUserId();
+  getOrCreateUserId().then(syncParentalSettings);
+  chrome.alarms.create("syncParental", { periodInMinutes: 1 });
+});
+
+// This fires reliably even when the service worker is asleep
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === "syncParental") {
+    syncParentalSettings();
+  }
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -58,6 +102,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     saveVideoEvent(message.data || {})
       .then(() => sendResponse({ success: true }))
       .catch((err) => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
+
+  if (message.type === "syncSettings") {
+    syncParentalSettings()
+      .then(() => sendResponse({ success: true }))
+      .catch((e) => sendResponse({ success: false, error: e.message }));
     return true;
   }
 
