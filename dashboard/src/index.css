@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+@theme {
+  --color-void: #050508;
+  --color-void-light: #0a0a12;
+  --color-abyss: #0d0d1a;
+  --color-toxic: #ff2e2e;
+  --color-toxic-dim: #4a1515;
+  --color-toxic-dead: #2a2a2e;
+  --color-value: #00ffd5;
+  --color-value-bright: #00ffaa;
+  --color-value-glow: #00ffd580;
+  --color-synapse: #1a6bff;
+  --color-synapse-glow: #1a6bff40;
+  --color-overlay-bg: #0a0a1299;
+  --color-overlay-border: #ffffff0d;
+  --color-text-primary: #e8e8f0;
+  --color-text-muted: #6a6a80;
+  --color-text-dim: #3a3a50;
+  --color-surface: #0c0c14;
+  --color-surface-hover: #12121e;
+
+  --font-display: "Departure Mono", monospace;
+  --font-body: "DM Sans", sans-serif;
+}
+
+/* Tailwind preflight natively handles margin and padding resets */
+
+html {
+  scroll-behavior: smooth;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-height: 100%;
+  background: var(--color-void);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Film grain overlay */
+#root::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  mix-blend-mode: overlay;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-text-dim);
+  border-radius: 3px;
+}
+
+/* Smooth canvas rendering */
+canvas {
+  image-rendering: auto;
+}
