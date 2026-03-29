@@ -46,6 +46,38 @@ async function saveVideoEvent(videoData) {
   }
 }
 
+// ── Parental settings sync ────────────────────────────────────────────────────
+
+async function syncParentalSettings() {
+  try {
+    const userId = await getOrCreateUserId();
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/parental_settings?user_id=eq.${encodeURIComponent(userId)}&limit=1`,
+      {
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+      }
+    );
+    if (!res.ok) return;
+    const rows = await res.json();
+    if (!rows || rows.length === 0) return;
+    const row = rows[0];
+
+    await chrome.storage.local.set({
+      interests: row.interests || [],
+      toxic: row.toxic_keywords || [],
+      parental_locked: row.locked === true,
+    });
+    console.log(`[FixMyFeed] Parental settings synced (locked=${row.locked}):`, row.interests);
+  } catch (e) {
+    console.warn("[FixMyFeed] Parental sync failed:", e);
+  }
+}
+
+// ── Color credit system ───────────────────────────────────────────────────────
+
 function parseSupabaseCount(response) {
   const rangeHeader = response.headers.get("content-range") || "";
   const parts = rangeHeader.split("/");
@@ -92,19 +124,26 @@ async function getColorCreditStatus() {
 }
 
 async function consumeColorCredit(videoData) {
-  await saveVideoEvent({
-    ...videoData,
-    action_type: "watched"
-  });
+  // Don't save to Supabase here - log_watch handles that with correct action_type
   return getColorCreditStatus();
 }
 
 chrome.runtime.onInstalled.addListener(() => {
-  getOrCreateUserId();
+  getOrCreateUserId().then(syncParentalSettings);
+  // Create a persistent alarm — survives service worker sleep
+  chrome.alarms.create("syncParental", { periodInMinutes: 1 });
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  getOrCreateUserId();
+  getOrCreateUserId().then(syncParentalSettings);
+  chrome.alarms.create("syncParental", { periodInMinutes: 1 });
+});
+
+// This fires reliably even when the service worker is asleep
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === "syncParental") {
+    syncParentalSettings();
+  }
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -122,50 +161,55 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  if (message.action === "log_video") {
-    saveVideoEvent(message.data || {})
+  // log_video handler removed - using /log_watch endpoint instead
+
+  if (message.type === "syncSettings") {
+    syncParentalSettings()
       .then(() => sendResponse({ success: true }))
-      .catch((err) => sendResponse({ success: false, error: err.message }));
+      .catch((e) => sendResponse({ success: false, error: e.message }));
     return true;
   }
 
   if (message.type === "evaluate") {
-    chrome.storage.local.get(["interests", "toxic", "autolike"], (data) => {
-      var interests = data.interests || ["software engineering", "cooking", "tennis"];
-      var toxic = data.toxic || ["prank", "gossip", "rage", "brainrot"];
-      var autolike = data.autolike !== false;
+    getOrCreateUserId().then((userId) => {
+      chrome.storage.local.get(["interests", "toxic", "autolike"], (data) => {
+        var interests = data.interests || ["software engineering", "cooking", "tennis"];
+        var toxic = data.toxic || ["prank", "gossip", "rage", "brainrot"];
+        var autolike = data.autolike !== false;
 
-      fetch(API + "/evaluate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text_content: message.text,
-          interests: interests,
-          toxic_keywords: toxic,
-        }),
-      })
-        .then(async (res) => {
-          if (!res.ok) {
-            const errorText = await res.text();
-            throw new Error(`Evaluate API failed (${res.status}): ${errorText}`);
-          }
-          return res.json();
+        fetch(API + "/evaluate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text_content: message.text,
+            interests: interests,
+            toxic_keywords: toxic,
+            user_id: userId,
+          }),
         })
-        .then((result) => {
-          result.autolike = autolike;
-          sendResponse({ success: true, data: result });
-        })
-        .catch((err) => {
-          console.error("[FixMyFeed] Evaluate API error:", err.message);
-          sendResponse({ success: false, error: err.message });
-        });
+          .then(async (res) => {
+            if (!res.ok) {
+              const errorText = await res.text();
+              throw new Error(`Evaluate API failed (${res.status}): ${errorText}`);
+            }
+            return res.json();
+          })
+          .then((result) => {
+            result.autolike = autolike;
+            result.user_id = userId;
+            sendResponse({ success: true, data: result });
+          })
+          .catch((err) => {
+            console.error("[FixMyFeed] Evaluate API error:", err.message);
+            sendResponse({ success: false, error: err.message });
+          });
+      });
     });
     return true;
   }
 
   if (message.type === "log_watch") {
-    chrome.storage.local.get(["user_id"], (data) => {
-      var userId = data.user_id || "anonymous";
+    getOrCreateUserId().then((userId) => {
       fetch(API + "/log_watch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -174,6 +218,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           action_type: message.action_type,
           duration_ms: message.duration_ms,
           text_content: message.text_content,
+          category_vector: message.category_vector || null,
+          deep_analysis: message.deep_analysis || null,
         }),
       })
         .then((res) => res.json())

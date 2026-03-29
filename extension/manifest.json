@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "FixMyFeed",
   "version": "1.0",
-  "description": "Feed filtering and attention tools",
-  "permissions": ["activeTab", "scripting", "storage"],
+  "description": "Algorithmic auto-scroller",
+  "permissions": ["activeTab", "scripting", "storage", "alarms"],
   "host_permissions": [
     "https://fonts.googleapis.com/*",
     "https://fonts.gstatic.com/*",

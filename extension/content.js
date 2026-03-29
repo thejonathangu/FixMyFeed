@@ -23,12 +23,21 @@ var currentWatch = null;
 function logCurrentWatch() {
   if (currentWatch && currentWatch.action !== "SKIP") {
     var duration = Date.now() - currentWatch.startTime;
+    console.log("[Shadow-Scroll] Logging watch:", currentWatch.action, duration + "ms");
     chrome.runtime.sendMessage({
       type: "log_watch",
       action_type: currentWatch.action,
       duration_ms: duration,
-      text_content: currentWatch.textContent
-    }, function() { if (chrome.runtime.lastError) {} });
+      text_content: currentWatch.textContent,
+      category_vector: currentWatch.categoryVector || null,
+      deep_analysis: currentWatch.deepAnalysis || null
+    }, function(response) { 
+      if (chrome.runtime.lastError) {
+        console.log("[Shadow-Scroll] log_watch error:", chrome.runtime.lastError.message);
+      } else {
+        console.log("[Shadow-Scroll] log_watch response:", response);
+      }
+    });
     if (currentWatch.dashboard && currentWatch.dashboard.parentNode) {
       currentWatch.dashboard.remove();
     }
@@ -65,20 +74,6 @@ function updateDashboardCredits(dashboard, creditStatus) {
   var prefix = noLegacy.split("\nColor credits:")[0].trim();
   dashboard.setAttribute("data-base-label", prefix + "\n" + formatCreditLine(creditStatus));
   dashboard.textContent = dashboard.getAttribute("data-base-label");
-}
-
-function normalizeCategoryVector(action, arr) {
-  var out = [];
-  if (Array.isArray(arr)) {
-    for (var i = 0; i < arr.length && out.length < 3; i++) {
-      var s = String(arr[i] == null ? "" : arr[i]).trim().slice(0, 30);
-      if (s) out.push(s);
-    }
-  }
-  if (out.length) return out;
-  if (action === "WAIT") return ["uncategorized", "neutral"];
-  if (action === "LIKE_AND_STAY") return ["aligned", "interest_match"];
-  return [];
 }
 
 function getColorCreditStatus() {
@@ -331,8 +326,7 @@ function ensureEvalBlockingOverlay() {
   }
   ensureFixMyFeedUiFont();
   var overlay = document.createElement("div");
-  overlay.style.cssText =
-    "position:fixed;top:0;left:0;width:100%;height:100%;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2147483646;";
+  overlay.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2147483646;";
 
   var spinner = document.createElement("div");
   spinner.style.cssText =
@@ -422,17 +416,19 @@ const observer = new IntersectionObserver((entries) => {
         }
       : Object.assign(scrapeVideoData(container), { platform: "tiktok" });
 
-    // Keep candidate logging without consuming color credits.
+    // TikTok candidate ping (background uses type: log_watch, not log_video).
     if (!isIg) {
       chrome.runtime.sendMessage({
-        action: "log_video",
-        data: {
-          action_type: "candidate",
-          caption: videoData.caption,
-          hashtags: videoData.hashtags,
-          creator: videoData.creator,
-          platform: videoData.platform
-        }
+        type: "log_watch",
+        action_type: "candidate",
+        duration_ms: 0,
+        text_content:
+          (videoData.caption || "") +
+          (videoData.hashtags && videoData.hashtags.length
+            ? " " + videoData.hashtags.join(" ")
+            : ""),
+        category_vector: null,
+        deep_analysis: null
       }, function() { if (chrome.runtime.lastError) {} });
     }
     ensureEvalBlockingOverlay();
@@ -466,27 +462,27 @@ const observer = new IntersectionObserver((entries) => {
 
         if (action === "WAIT") {
           muteVideoInContainer(container);
+          removeEvalBlockingOverlay();
+
           getColorCreditStatus().then(function(status) {
             if (status) {
               latestCreditStatus = status;
               applyCreditFilter(status);
             }
           });
-          var categoryVecWait = normalizeCategoryVector(action, response.data.category_vector);
+
+          // Set currentWatch so duration is logged via log_watch when scrolling away
+          currentWatch = {
+            action: action,
+            startTime: videoStartTime,
+            textContent: textContent,
+            dashboard: null,
+            categoryVector: response.data.category_vector || null,
+            deepAnalysis: response.data.deep_analysis || null
+          };
+          
           setTimeout(() => {
-            var durationMs = Date.now() - videoStartTime;
-            chrome.runtime.sendMessage({
-              action: "log_video",
-              data: {
-                action_type: action,
-                caption: videoData.caption,
-                hashtags: videoData.hashtags,
-                creator: videoData.creator,
-                platform: videoData.platform,
-                category_vector: categoryVecWait,
-                duration_ms: durationMs
-              }
-            }, function() { if (chrome.runtime.lastError) {} });
+            logCurrentWatch();
             scrollToNext(container);
           }, delayMs);
           return;
@@ -537,26 +533,10 @@ const observer = new IntersectionObserver((entries) => {
           action: action,
           startTime: videoStartTime,
           textContent: textContent,
-          dashboard: dashboard
+          dashboard: dashboard,
+          categoryVector: response.data.category_vector || null,
+          deepAnalysis: response.data.deep_analysis || null
         };
-
-        var categoryVecLike = normalizeCategoryVector(action, response.data.category_vector);
-
-        chrome.runtime.sendMessage({
-          action: "log_video",
-          data: {
-            action_type: action,
-            caption: videoData.caption,
-            hashtags: videoData.hashtags,
-            creator: videoData.creator,
-            platform: videoData.platform,
-            category_vector: categoryVecLike
-          }
-        }, function() {
-          if (chrome.runtime.lastError) {
-            console.log("[Shadow-Scroll] log_video:", chrome.runtime.lastError.message);
-          }
-        });
 
         consumeColorCredit({
           caption: videoData.caption,
