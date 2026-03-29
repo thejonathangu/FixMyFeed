@@ -30,14 +30,15 @@ function Tag({
 
   return (
     <span
-      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-display text-[11px] tracking-wider"
+      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full font-display text-[11px] tracking-wider"
       style={{ background: styles.bg, border: `1px solid ${styles.border}`, color: styles.text }}
     >
       {label}
       {!disabled && onRemove && (
         <button
           onClick={onRemove}
-          className="opacity-50 hover:opacity-100 transition-opacity leading-none"
+          className="opacity-70 hover:opacity-100 transition-opacity flex items-center justify-center rounded-full"
+          style={{ fontSize: '22px', width: '28px', height: '28px', lineHeight: 1, background: 'rgba(255,255,255,0.08)' }}
         >
           ×
         </button>
