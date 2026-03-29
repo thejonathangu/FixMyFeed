@@ -46,25 +46,9 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen flex flex-col items-stretch px-4 py-5 sm:px-8 sm:py-8 lg:px-12 lg:py-10">
-      <div
-        className="flex flex-col w-full max-w-7xl mx-auto flex-1 min-h-0 h-[calc(100vh-4.5rem)] sm:h-[calc(100vh-6.5rem)] lg:h-[calc(100vh-7.5rem)] rounded-[1.35rem] border overflow-hidden"
-        style={{
-          background: 'linear-gradient(165deg, rgba(253, 250, 246, 0.78) 0%, rgba(248, 243, 236, 0.62) 100%)',
-          borderColor: 'rgba(44, 38, 31, 0.12)',
-          boxShadow:
-            '0 2px 4px rgba(44, 38, 31, 0.05), 0 24px 56px rgba(44, 38, 31, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.5)',
-          backdropFilter: 'blur(16px) saturate(150%)',
-          WebkitBackdropFilter: 'blur(16px) saturate(150%)',
-        }}
-      >
+      <div className="flex flex-col w-full flex-1 min-h-0 h-[calc(100vh-4.5rem)] sm:h-[calc(100vh-6.5rem)] lg:h-[calc(100vh-7.5rem)]">
         <nav
-          className="shrink-0 z-50 border-b"
-          style={{
-            borderColor: 'rgba(44, 38, 31, 0.1)',
-            background: 'rgba(253, 250, 246, 0.45)',
-            backdropFilter: 'blur(14px) saturate(140%)',
-            WebkitBackdropFilter: 'blur(14px) saturate(140%)',
-          }}
+          className="shrink-0 z-50"
         >
           <div className="w-full flex flex-wrap items-center justify-between gap-4 px-5 sm:px-7 py-3.5 sm:py-4">
             <div className="flex flex-col gap-0.5 min-w-0 order-1">

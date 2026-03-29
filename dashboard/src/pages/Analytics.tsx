@@ -118,7 +118,7 @@ export default function Analytics() {
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mx-6 sm:mx-10 mt-6 px-4 py-3 rounded-xl border"
+          className="mx-6 sm:mx-10 mt-3 px-5 py-4 rounded-xl border"
           style={{
             background: 'linear-gradient(90deg, rgba(181, 132, 61, 0.12), rgba(253, 250, 246, 0.9))',
             borderColor: 'rgba(181, 132, 61, 0.25)',
@@ -126,8 +126,7 @@ export default function Analytics() {
         >
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <span style={{ color: '#b5843d' }}>⚡</span>
-              <span className="font-body text-xs text-text-primary">
+              <span className="font-body text-sm text-text-primary">
                 {userId ? 'Showing demo data — no events found' : 'Enter your User ID to see real analytics'}
               </span>
             </div>
@@ -137,7 +136,7 @@ export default function Analytics() {
                 type="text"
                 defaultValue={userId}
                 placeholder="User ID from extension"
-                className="px-3 py-1.5 rounded-lg border font-body text-xs w-48"
+                className="px-3 py-2 rounded-lg border font-body text-sm w-52"
                 style={{
                   borderColor: 'rgba(44, 38, 31, 0.15)',
                   background: 'white',
@@ -145,7 +144,7 @@ export default function Analytics() {
               />
               <button
                 type="submit"
-                className="px-3 py-1.5 rounded-lg font-body text-xs font-medium"
+                className="px-4 py-2 rounded-lg font-body text-sm font-medium"
                 style={{
                   background: '#b5843d',
                   color: 'white',
@@ -158,7 +157,7 @@ export default function Analytics() {
         </motion.div>
       )}
 
-      <div className="max-w-6xl mx-auto px-6 sm:px-10 py-8 sm:py-10 space-y-9">
+      <div className="w-full px-6 sm:px-10 py-8 sm:py-10 space-y-9">
         <motion.div variants={staggerItem} className="flex items-start justify-between">
           <div>
             <h2 className="font-body text-xl font-medium tracking-tight text-text-primary mb-1">
@@ -327,16 +326,16 @@ function MetricCard({
       whileHover={{ scale: 1.02 }}
       transition={{ type: 'spring', stiffness: 380, damping: 22 }}
     >
-      <p className="font-body text-[10px] tracking-wide text-text-dim uppercase mb-2 relative z-[1]">
+      <p className="font-body text-[10px] tracking-wide text-text-dim uppercase mb-2 relative z-1">
         {label}
       </p>
-      <p className="font-body text-2xl sm:text-[1.65rem] text-text-primary tabular-nums font-semibold relative z-[1]">
+      <p className="font-body text-2xl sm:text-[1.65rem] text-text-primary tabular-nums font-semibold relative z-1">
         {n}
         {suffix}
       </p>
       {deltaText && trend && (
         <p
-          className="font-body text-xs mt-2 tabular-nums flex items-center gap-1 relative z-[1]"
+          className="font-body text-xs mt-2 tabular-nums flex items-center gap-1 relative z-1"
           style={{ color: trend.good ? GREEN : ROSE }}
         >
           <span aria-hidden className="text-[11px] font-semibold">
@@ -349,7 +348,7 @@ function MetricCard({
         </p>
       )}
       {deltaText && !trend && (
-        <p className="font-body text-xs mt-2 text-text-muted tabular-nums relative z-[1]">
+        <p className="font-body text-xs mt-2 text-text-muted tabular-nums relative z-1">
           Session total
         </p>
       )}

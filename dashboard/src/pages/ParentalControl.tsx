@@ -315,57 +315,44 @@ export default function ParentalControl() {
 
   if (!userId) {
     return (
-      <div className="h-full flex items-center justify-center p-8">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-xl"
+      <div className="h-full flex flex-col items-center justify-center gap-4 px-6">
+        <p className="font-body text-sm text-text-muted text-center max-w-md">
+          Parents: enter your child&apos;s User ID to manage content rules and lock settings.
+        </p>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (userIdInput.trim()) {
+              setUserId(userIdInput.trim());
+              loadSettings(userIdInput.trim());
+            }
+          }}
+          className="flex gap-2"
         >
-          <div
-            className="rounded-2xl border p-10 text-center"
+          <input
+            value={userIdInput}
+            onChange={(e) => setUserIdInput(e.target.value)}
+            placeholder="Enter child user ID"
+            className="px-4 py-2 rounded-full border font-body text-sm"
             style={{
-              background: 'rgba(253,250,246,0.95)',
-              borderColor: 'rgba(44,38,31,0.14)',
+              borderColor: 'rgba(44, 38, 31, 0.15)',
+              background: 'rgba(253, 250, 246, 0.8)',
+            }}
+          />
+          <button
+            type="submit"
+            className="px-4 py-2 rounded-full font-body text-xs font-medium"
+            style={{
+              background: 'rgba(78, 119, 84, 0.15)',
+              color: '#4e7754',
             }}
           >
-            <h2 className="text-lg tracking-wide text-text-primary uppercase mb-3">
-              Parental Control
-            </h2>
-            <p className="text-sm text-text-muted mb-7">
-              Enter the User ID from the Shadow-Scroll extension to manage content settings.
-            </p>
-            <div className="flex gap-3">
-              <input
-                value={userIdInput}
-                onChange={(e) => setUserIdInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && userIdInput.trim()) {
-                    setUserId(userIdInput.trim());
-                    loadSettings(userIdInput.trim());
-                  }
-                }}
-                placeholder="user_abc123..."
-                className="flex-1 bg-transparent border rounded-lg px-4 py-3 text-sm text-text-primary outline-none placeholder:text-text-dim"
-                style={{ borderColor: 'rgba(44,38,31,0.2)' }}
-              />
-              <button
-                onClick={() => {
-                  if (userIdInput.trim()) {
-                    setUserId(userIdInput.trim());
-                    loadSettings(userIdInput.trim());
-                  }
-                }}
-                className="px-5 py-3 rounded-lg text-sm tracking-wide border"
-                style={{ background: '#f3efe8', borderColor: 'rgba(44,38,31,0.2)', color: '#2c261f' }}
-              >
-                Load
-              </button>
-            </div>
-            <p className="text-xs text-text-dim mt-4">
-              Find your User ID in the extension popup under Settings.
-            </p>
-          </div>
-        </motion.div>
+            Connect
+          </button>
+        </form>
+        <p className="font-body text-xs text-text-dim text-center">
+          Ask your child to copy their User ID from the extension popup.
+        </p>
       </div>
     );
   }
@@ -385,7 +372,7 @@ export default function ParentalControl() {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="max-w-4xl mx-auto px-10 py-10 space-y-8">
+      <div className="w-full px-10 py-10 space-y-8">
 
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
