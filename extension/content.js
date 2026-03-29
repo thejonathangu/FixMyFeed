@@ -12,12 +12,21 @@ var currentWatch = null;
 function logCurrentWatch() {
   if (currentWatch && currentWatch.action !== "SKIP") {
     var duration = Date.now() - currentWatch.startTime;
+    console.log("[Shadow-Scroll] Logging watch:", currentWatch.action, duration + "ms");
     chrome.runtime.sendMessage({
       type: "log_watch",
       action_type: currentWatch.action,
       duration_ms: duration,
-      text_content: currentWatch.textContent
-    }, function() { if (chrome.runtime.lastError) {} });
+      text_content: currentWatch.textContent,
+      category_vector: currentWatch.categoryVector || null,
+      deep_analysis: currentWatch.deepAnalysis || null
+    }, function(response) { 
+      if (chrome.runtime.lastError) {
+        console.log("[Shadow-Scroll] log_watch error:", chrome.runtime.lastError.message);
+      } else {
+        console.log("[Shadow-Scroll] log_watch response:", response);
+      }
+    });
     if (currentWatch.dashboard && currentWatch.dashboard.parentNode) {
       currentWatch.dashboard.remove();
     }
@@ -298,7 +307,7 @@ function scrapeVideoData(container) {
 // ---------------------------------------------------------------------------
 function createLoadingOverlay() {
   var overlay = document.createElement("div");
-  overlay.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2147483646;";
+  overlay.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2147483646;";
 
   var spinner = document.createElement("div");
   spinner.style.cssText = "width:60px;height:60px;border:4px solid #222;border-top:4px solid #39ff14;border-radius:50%;animation:shadowspin 0.8s linear infinite;";
@@ -384,19 +393,6 @@ const observer = new IntersectionObserver((entries) => {
         }
       : Object.assign(scrapeVideoData(container), { platform: "tiktok" });
 
-    // Keep candidate logging without consuming color credits.
-    if (!isIg) {
-      chrome.runtime.sendMessage({
-        action: "log_video",
-        data: {
-          action_type: "candidate",
-          caption: videoData.caption,
-          hashtags: videoData.hashtags,
-          creator: videoData.creator,
-          platform: videoData.platform
-        }
-      }, function() { if (chrome.runtime.lastError) {} });
-    }
     var loadingOverlay = createLoadingOverlay();
     
     // Track start time BEFORE API call
@@ -431,28 +427,29 @@ const observer = new IntersectionObserver((entries) => {
 
         if (action === "WAIT") {
           muteVideoInContainer(container);
+          if (loadingOverlay && loadingOverlay.parentNode) loadingOverlay.remove();
+          
           getColorCreditStatus().then(function(status) {
             if (status) {
               latestCreditStatus = status;
               applyCreditFilter(status);
             }
           });
+          
           var categoryVecWait = normalizeCategoryVector(action, response.data.category_vector);
+          
+          // Set currentWatch so duration is logged via log_watch when scrolling away
+          currentWatch = {
+            action: action,
+            startTime: videoStartTime,
+            textContent: textContent,
+            dashboard: null,
+            categoryVector: response.data.category_vector || null,
+            deepAnalysis: null
+          };
+          
           setTimeout(() => {
-            var durationMs = Date.now() - videoStartTime;
-            chrome.runtime.sendMessage({
-              action: "log_video",
-              data: {
-                action_type: action,
-                caption: videoData.caption,
-                hashtags: videoData.hashtags,
-                creator: videoData.creator,
-                platform: videoData.platform,
-                category_vector: categoryVecWait,
-                duration_ms: durationMs
-              }
-            }, function() { if (chrome.runtime.lastError) {} });
-            if (loadingOverlay && loadingOverlay.parentNode) loadingOverlay.remove();
+            logCurrentWatch();
             scrollToNext(container);
           }, delayMs);
           return;
@@ -497,26 +494,12 @@ const observer = new IntersectionObserver((entries) => {
           action: action,
           startTime: videoStartTime,
           textContent: textContent,
-          dashboard: dashboard
+          dashboard: dashboard,
+          categoryVector: response.data.category_vector || null,
+          deepAnalysis: response.data.deep_analysis || null
         };
 
         var categoryVecLike = normalizeCategoryVector(action, response.data.category_vector);
-
-        chrome.runtime.sendMessage({
-          action: "log_video",
-          data: {
-            action_type: action,
-            caption: videoData.caption,
-            hashtags: videoData.hashtags,
-            creator: videoData.creator,
-            platform: videoData.platform,
-            category_vector: categoryVecLike
-          }
-        }, function() {
-          if (chrome.runtime.lastError) {
-            console.log("[Shadow-Scroll] log_video:", chrome.runtime.lastError.message);
-          }
-        });
 
         consumeColorCredit({
           caption: videoData.caption,

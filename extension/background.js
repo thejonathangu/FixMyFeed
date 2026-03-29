@@ -124,10 +124,7 @@ async function getColorCreditStatus() {
 }
 
 async function consumeColorCredit(videoData) {
-  await saveVideoEvent({
-    ...videoData,
-    action_type: "watched"
-  });
+  // Don't save to Supabase here - log_watch handles that with correct action_type
   return getColorCreditStatus();
 }
 
@@ -164,12 +161,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  if (message.action === "log_video") {
-    saveVideoEvent(message.data || {})
-      .then(() => sendResponse({ success: true }))
-      .catch((err) => sendResponse({ success: false, error: err.message }));
-    return true;
-  }
+  // log_video handler removed - using /log_watch endpoint instead
 
   if (message.type === "syncSettings") {
     syncParentalSettings()
@@ -179,42 +171,45 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === "evaluate") {
-    chrome.storage.local.get(["interests", "toxic", "autolike"], (data) => {
-      var interests = data.interests || ["software engineering", "cooking", "tennis"];
-      var toxic = data.toxic || ["prank", "gossip", "rage", "brainrot"];
-      var autolike = data.autolike !== false;
+    getOrCreateUserId().then((userId) => {
+      chrome.storage.local.get(["interests", "toxic", "autolike"], (data) => {
+        var interests = data.interests || ["software engineering", "cooking", "tennis"];
+        var toxic = data.toxic || ["prank", "gossip", "rage", "brainrot"];
+        var autolike = data.autolike !== false;
 
-      fetch(API + "/evaluate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text_content: message.text,
-          interests: interests,
-          toxic_keywords: toxic,
-        }),
-      })
-        .then(async (res) => {
-          if (!res.ok) {
-            const errorText = await res.text();
-            throw new Error(`Evaluate API failed (${res.status}): ${errorText}`);
-          }
-          return res.json();
+        fetch(API + "/evaluate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text_content: message.text,
+            interests: interests,
+            toxic_keywords: toxic,
+            user_id: userId,
+          }),
         })
-        .then((result) => {
-          result.autolike = autolike;
-          sendResponse({ success: true, data: result });
-        })
-        .catch((err) => {
-          console.error("[FixMyFeed] Evaluate API error:", err.message);
-          sendResponse({ success: false, error: err.message });
-        });
+          .then(async (res) => {
+            if (!res.ok) {
+              const errorText = await res.text();
+              throw new Error(`Evaluate API failed (${res.status}): ${errorText}`);
+            }
+            return res.json();
+          })
+          .then((result) => {
+            result.autolike = autolike;
+            result.user_id = userId;
+            sendResponse({ success: true, data: result });
+          })
+          .catch((err) => {
+            console.error("[FixMyFeed] Evaluate API error:", err.message);
+            sendResponse({ success: false, error: err.message });
+          });
+      });
     });
     return true;
   }
 
   if (message.type === "log_watch") {
-    chrome.storage.local.get(["user_id"], (data) => {
-      var userId = data.user_id || "anonymous";
+    getOrCreateUserId().then((userId) => {
       fetch(API + "/log_watch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -223,6 +218,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           action_type: message.action_type,
           duration_ms: message.duration_ms,
           text_content: message.text_content,
+          category_vector: message.category_vector || null,
+          deep_analysis: message.deep_analysis || null,
         }),
       })
         .then((res) => res.json())
