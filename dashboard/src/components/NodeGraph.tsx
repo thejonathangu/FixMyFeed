@@ -16,13 +16,13 @@ interface SelectedNode {
 // ---------------------------------------------------------------------------
 // 2D node graph with CSS 3D perspective rotation + WebGL background
 // ---------------------------------------------------------------------------
-// Focal length for perspective projection — higher = flatter, lower = more dramatic
 const FOCAL = 600;
-// How many canvas-pixels the Z range maps to
 const DEPTH_SCALE = 280;
-// Auto-rotation: max degrees and period in ms
 const AUTO_ROT_MAX = 8;
 const AUTO_ROT_PERIOD = 15000;
+const ZOOM_MIN = 0.35;
+const ZOOM_MAX = 3.5;
+const ZOOM_STEP = 0.18;
 
 export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -30,21 +30,38 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
   const [hovered, setHovered] = useState<HoveredNode | null>(null);
   const [selected, setSelected] = useState<SelectedNode | null>(null);
 
-  // Rotation state (manual CSS tilt)
+  // Rotation state
   const [rotation, setRotation] = useState({ rx: 0, ry: 0 });
   const isDragging = useRef(false);
   const dragStart = useRef({ x: 0, y: 0, rx: 0, ry: 0 });
-  // Auto-rotation: pauses while user is dragging
   const autoRotPaused = useRef(false);
   const autoRotPausedAt = useRef(0);
+
+  // Zoom state — ref for draw loop (no stale closure), state for UI buttons
+  const zoomRef = useRef(1);
+  const [zoom, setZoom] = useState(1);
+
+  const applyZoom = useCallback((rawSx: number, rawSy: number) => {
+    const { w, h } = sizeRef.current;
+    return {
+      sx: w / 2 + (rawSx - w / 2) * zoomRef.current,
+      sy: h / 2 + (rawSy - h / 2) * zoomRef.current,
+    };
+  }, []);
+
+  const setZoomClamped = useCallback((next: number) => {
+    const z = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, next));
+    zoomRef.current = z;
+    setZoom(z);
+  }, []);
 
   // Track size
   const sizeRef = useRef({ w: 0, h: 0, dpr: 1 });
 
-  // Animated positions (now includes z)
+  // Animated positions
   const currentPos = useRef<Map<string, { x: number; y: number; z: number; weight: number }>>(new Map());
 
-  // Last projected screen positions from the draw loop — used for accurate hit testing
+  // Last projected screen positions — used for hit testing
   const screenPos = useRef<Map<string, { sx: number; sy: number; r: number }>>(new Map());
 
   const toPixel = useCallback((nx: number, ny: number) => {
@@ -79,7 +96,6 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
 
   const hitTest = useCallback(
     (mx: number, my: number): NodeData | null => {
-      // Use actual screen positions from the last draw frame (front-to-back priority)
       const sorted = [...nodes].sort((a, b) => (b.z ?? 0) - (a.z ?? 0));
       for (const n of sorted) {
         const sp = screenPos.current.get(n.id);
@@ -132,30 +148,34 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
 
-      // Auto-rotation: slow sine oscillation unless user is dragging
       const now = Date.now();
       const autoRy = autoRotPaused.current
         ? 0
         : AUTO_ROT_MAX * Math.sin((now / AUTO_ROT_PERIOD) * Math.PI * 2);
 
-      // Perspective projection helper:
-      // rotates the node's X around the Y axis by autoRy degrees, then applies
-      // a simple divide-by-depth scale so far nodes appear smaller + dimmer.
       const ryRad = (autoRy * Math.PI) / 180;
-      const project = (nx: number, ny: number, nz: number) => {
-        // Convert normalized [0,1] coords to centered world coords
+      const projectRaw = (nx: number, ny: number, nz: number) => {
         const wx = (nx - 0.5) * w;
         const wy = (ny - 0.5) * h;
         const wz = nz * DEPTH_SCALE;
-        // Rotate around Y axis
         const rx3 = wx * Math.cos(ryRad) - wz * Math.sin(ryRad);
         const rz3 = wx * Math.sin(ryRad) + wz * Math.cos(ryRad);
-        // Perspective divide
         const scale = FOCAL / (FOCAL + rz3);
         return {
           sx: w / 2 + rx3 * scale,
           sy: h / 2 + wy * scale,
-          scale,          // > 1 = in front, < 1 = behind
+          scale,
+        };
+      };
+
+      // Project + apply zoom (centered on canvas midpoint)
+      const z = zoomRef.current;
+      const project = (nx: number, ny: number, nz: number) => {
+        const raw = projectRaw(nx, ny, nz);
+        return {
+          sx: w / 2 + (raw.sx - w / 2) * z,
+          sy: h / 2 + (raw.sy - h / 2) * z,
+          scale: raw.scale,
         };
       };
 
@@ -197,7 +217,7 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
         }
       }
 
-      // --- Connections --- (use projected screen positions)
+      // --- Connections ---
       for (const n of nodes) {
         const from = posMap.get(n.id);
         if (!from) continue;
@@ -233,34 +253,31 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
         }
       }
 
-      // --- Nodes ---
-      // Painter's algorithm: sort back-to-front by projected Z so front nodes
-      // always paint on top of rear ones.
+      // --- Nodes (painter's algorithm: back to front) ---
       const sorted = [...nodes].sort((a, b) => {
         const za = posMap.get(a.id)?.z ?? 0;
         const zb = posMap.get(b.id)?.z ?? 0;
-        return za - zb; // negative Z (back) renders first
+        return za - zb;
       });
 
       for (const n of sorted) {
         const cur = posMap.get(n.id);
         if (!cur) continue;
 
-        // Project to screen with depth
-        const proj = project(n.x, n.y, cur.z);
-        const { sx, sy, scale } = proj;
+        const { sx, sy, scale } = project(n.x, n.y, cur.z);
 
-        // Scale radius and alpha by perspective depth
-        const r = getRadius(cur.weight) * scale;
+        // Scale radius by both perspective depth and zoom
+        const r = getRadius(cur.weight) * scale * z;
         const depthAlpha = Math.max(0.25, Math.min(1, scale * 1.2));
 
-        // Store projected screen position so hitTest can use exact drawn coords
+        // Store zoom-adjusted screen position for accurate hit testing
         screenPos.current.set(n.id, { sx, sy, r });
+
         const isDimmed = highlightIds.size > 0 && !highlightIds.has(n.id);
         const isActive = highlightIds.has(n.id);
         const alpha = (isDimmed ? 0.12 : 1) * depthAlpha;
 
-        // Outer glow (only for front nodes — scale > 0.9)
+        // Outer glow
         if (!isDimmed && n.category === 'value' && cur.weight > 0.25 && scale > 0.9) {
           const grad = ctx.createRadialGradient(sx, sy, r * 0.3, sx, sy, r * 2.8);
           grad.addColorStop(0, getColor('value', cur.weight, 0.18 * depthAlpha));
@@ -324,13 +341,23 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
 
     draw();
     return () => cancelAnimationFrame(animId);
-  }, [nodes, toPixel, selected, hovered]);
+  }, [nodes, toPixel, selected, hovered, applyZoom]);
+
+  // --- Scroll to zoom ---
+  const handleWheel = useCallback(
+    (e: React.WheelEvent) => {
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? 1 + ZOOM_STEP : 1 - ZOOM_STEP;
+      setZoomClamped(zoomRef.current * factor);
+    },
+    [setZoomClamped],
+  );
 
   // --- Drag to rotate ---
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     if (e.button === 1 || e.button === 2 || e.shiftKey) {
       isDragging.current = true;
-      autoRotPaused.current = true; // pause auto-rotation while dragging
+      autoRotPaused.current = true;
       dragStart.current = {
         x: e.clientX,
         y: e.clientY,
@@ -344,7 +371,6 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!isDragging.current) {
-      // Normal hover
       const canvas = canvasRef.current;
       if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
@@ -373,7 +399,6 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
 
   const handlePointerUp = useCallback(() => {
     isDragging.current = false;
-    // Resume auto-rotation 1.5s after the user releases
     autoRotPausedAt.current = Date.now();
     setTimeout(() => {
       autoRotPaused.current = false;
@@ -382,7 +407,7 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
 
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
-      if (e.shiftKey) return; // was a rotation drag
+      if (e.shiftKey) return;
       const canvas = canvasRef.current;
       if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
@@ -399,21 +424,21 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
     [hitTest],
   );
 
-  // Double-click to reset rotation
   const handleDoubleClick = useCallback(() => {
     setRotation({ rx: 0, ry: 0 });
-  }, []);
+    setZoomClamped(1);
+  }, [setZoomClamped]);
 
   const connectedNodes = selected
     ? nodes.filter((n) => selected.node.connections.includes(n.id))
     : [];
 
+  const zoomPct = Math.round(zoom * 100);
+
   return (
     <div className="absolute inset-0 overflow-hidden">
-      {/* WebGL ambient background */}
       <WebGLBackground />
 
-      {/* Perspective container */}
       <div
         className="absolute inset-0"
         style={{ perspective: '1200px', perspectiveOrigin: '50% 50%' }}
@@ -437,15 +462,97 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
             }}
             onClick={handleClick}
             onDoubleClick={handleDoubleClick}
+            onWheel={handleWheel}
             onContextMenu={(e) => e.preventDefault()}
             className="block w-full h-full"
           />
         </div>
       </div>
 
-      {/* Rotation hint */}
-      {rotation.rx === 0 && rotation.ry === 0 && (
-        <div className="absolute bottom-3 right-3 z-20 pointer-events-none">
+      {/* Zoom controls */}
+      <div className="absolute bottom-4 right-4 z-20 flex flex-col items-center gap-1">
+        <motion.button
+          type="button"
+          aria-label="Zoom in"
+          onClick={() => setZoomClamped(zoomRef.current * (1 + ZOOM_STEP))}
+          whileHover={{ scale: 1.08 }}
+          whileTap={{ scale: 0.93 }}
+          disabled={zoom >= ZOOM_MAX}
+          className="w-8 h-8 flex items-center justify-center rounded-lg font-body text-sm select-none disabled:opacity-30"
+          style={{
+            background: 'rgba(253, 250, 246, 0.88)',
+            border: '1px solid rgba(44,38,31,0.13)',
+            color: 'var(--color-text-primary)',
+            boxShadow: '0 1px 4px rgba(44,38,31,0.1)',
+          }}
+        >
+          +
+        </motion.button>
+
+        {/* Zoom level badge */}
+        <div
+          className="px-1.5 py-0.5 rounded font-body text-[9px] tracking-wide tabular-nums select-none"
+          style={{
+            background: 'rgba(253, 250, 246, 0.82)',
+            border: '1px solid rgba(44,38,31,0.1)',
+            color: 'var(--color-text-dim)',
+          }}
+        >
+          {zoomPct}%
+        </div>
+
+        <motion.button
+          type="button"
+          aria-label="Zoom out"
+          onClick={() => setZoomClamped(zoomRef.current * (1 - ZOOM_STEP))}
+          whileHover={{ scale: 1.08 }}
+          whileTap={{ scale: 0.93 }}
+          disabled={zoom <= ZOOM_MIN}
+          className="w-8 h-8 flex items-center justify-center rounded-lg font-body text-sm select-none disabled:opacity-30"
+          style={{
+            background: 'rgba(253, 250, 246, 0.88)',
+            border: '1px solid rgba(44,38,31,0.13)',
+            color: 'var(--color-text-primary)',
+            boxShadow: '0 1px 4px rgba(44,38,31,0.1)',
+          }}
+        >
+          −
+        </motion.button>
+
+        {/* Reset zoom (only shown when not at 100%) */}
+        <AnimatePresence>
+          {zoom !== 1 && (
+            <motion.button
+              key="reset"
+              type="button"
+              aria-label="Reset zoom"
+              onClick={() => setZoomClamped(1)}
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              transition={{ duration: 0.15 }}
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.93 }}
+              className="w-8 h-8 flex items-center justify-center rounded-lg font-body select-none"
+              style={{
+                background: 'rgba(253, 250, 246, 0.88)',
+                border: '1px solid rgba(44,38,31,0.13)',
+                color: 'var(--color-text-dim)',
+                boxShadow: '0 1px 4px rgba(44,38,31,0.1)',
+                fontSize: 9,
+                letterSpacing: '0.04em',
+              }}
+              title="Reset to 100%"
+            >
+              ↺
+            </motion.button>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Hints */}
+      {rotation.rx === 0 && rotation.ry === 0 && zoom === 1 && (
+        <div className="absolute bottom-4 right-16 z-20 pointer-events-none">
           <div
             className="rounded-md px-2.5 py-1 font-body text-[9px] tracking-wide text-text-dim uppercase"
             style={{
@@ -453,7 +560,7 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
               border: '1px solid rgba(44,38,31,0.12)',
             }}
           >
-            Shift+Drag to rotate
+            Scroll to zoom · Shift+Drag to rotate
           </div>
         </div>
       )}
