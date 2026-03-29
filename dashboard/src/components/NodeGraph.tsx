@@ -309,17 +309,11 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
 
           if (r >= 18) {
             ctx.textBaseline = 'middle';
-            ctx.fillStyle =
-              n.category === 'value'
-                ? `rgba(44, 38, 31, ${Math.min(0.35, cur.weight * 0.5) * depthAlpha})`
-                : `rgba(253, 250, 246, ${Math.min(0.9, cur.weight * 1.0) * depthAlpha})`;
+            ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(0.95, Math.max(0.45, cur.weight * 1.0)) * depthAlpha})`;
             ctx.fillText(n.theme_name, sx, sy);
           } else {
             ctx.textBaseline = 'top';
-            ctx.fillStyle =
-              n.category === 'value'
-                ? `rgba(78, 119, 84, ${Math.max(0.35, cur.weight) * depthAlpha})`
-                : `rgba(200, 140, 130, ${Math.max(0.35, cur.weight * 0.75) * depthAlpha})`;
+            ctx.fillStyle = `rgba(255, 255, 255, ${Math.max(0.45, cur.weight * depthAlpha)})`;
             ctx.fillText(n.theme_name, sx, sy + r + 4);
           }
         }

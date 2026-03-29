@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import NodeGraph from '../components/NodeGraph';
-import MindfulnessOverlay from '../components/MindfulnessOverlay';
 import { useCountUp } from '../hooks/useCountUp';
 import {
   fetchEvolvingDopamineStats,
@@ -78,19 +77,18 @@ export default function NeuralMap() {
       {/* User ID prompt banner when no user or demo data */}
       {!isRealData && (
         <motion.div
-          initial={{ opacity: 0, y: -20 }}
+          initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="shrink-0 px-4 py-3 border-b"
+          className="mx-6 sm:mx-10 mt-3 px-5 py-4 rounded-xl border"
           style={{
             background: 'linear-gradient(90deg, rgba(181, 132, 61, 0.12), rgba(253, 250, 246, 0.9))',
             borderColor: 'rgba(181, 132, 61, 0.25)',
           }}
         >
-          <div className="max-w-4xl mx-auto flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <span style={{ color: '#b5843d' }}>⚡</span>
-              <span className="font-body text-xs text-text-primary">
-                {userId ? 'Showing demo data — no events found for this user' : 'Enter your User ID to see your real neural map'}
+              <span className="font-body text-sm text-text-primary">
+                {userId ? 'Showing demo data - no events found' : 'Enter your User ID to see real analytics'}
               </span>
             </div>
             <form onSubmit={handleUserIdSubmit} className="flex gap-2">
@@ -99,7 +97,7 @@ export default function NeuralMap() {
                 type="text"
                 defaultValue={userId}
                 placeholder="User ID from extension"
-                className="px-3 py-1.5 rounded-lg border font-body text-xs w-48"
+                className="px-3 py-2 rounded-lg border font-body text-sm w-52"
                 style={{
                   borderColor: 'rgba(44, 38, 31, 0.15)',
                   background: 'white',
@@ -107,7 +105,7 @@ export default function NeuralMap() {
               />
               <button
                 type="submit"
-                className="px-3 py-1.5 rounded-lg font-body text-xs font-medium"
+                className="px-4 py-2 rounded-lg font-body text-sm font-medium"
                 style={{
                   background: '#b5843d',
                   color: 'white',
@@ -138,10 +136,9 @@ export default function NeuralMap() {
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15, duration: 0.4 }}
-        className="shrink-0 border-b border-stone-400/25"
-        style={{ background: 'rgba(253, 250, 246, 0.35)' }}
+        className="shrink-0"
       >
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center gap-4 sm:gap-5 px-6 sm:px-8 py-3.5 sm:py-4">
+        <div className="flex flex-wrap items-center gap-4 sm:gap-5 px-6 sm:px-8 py-2.5 sm:py-3">
           <StatPillBadge
             label="Intercepted"
             value={interpolated.stats.toxic_intercepted}
@@ -152,91 +149,74 @@ export default function NeuralMap() {
             value={interpolated.stats.value_reinforced}
             accent="green"
           />
-          <div className="w-full sm:w-auto sm:ml-auto flex items-center gap-3 min-w-0">
-            <span className="font-body text-[10px] tracking-wide text-text-dim uppercase shrink-0">
-              Rewiring
-            </span>
-            <div className="flex-1 sm:flex-initial sm:w-36 h-2 rounded-full overflow-hidden bg-stone-400/25 border border-stone-500/10">
-              <motion.div
-                className="h-full rounded-full origin-left w-full"
-                style={{
-                  background: 'linear-gradient(90deg, #6b6560, #4e7754)',
-                  boxShadow: '0 0 12px rgba(78, 119, 84, 0.38)',
-                }}
-                initial={false}
-                animate={{ scaleX: interpolated.stats.rewiring_pct / 100 }}
-                transition={{ duration: 0.85, ease: [0.22, 1, 0.36, 1] as const }}
-              />
-            </div>
-            <RewiringPercent value={interpolated.stats.rewiring_pct} />
-          </div>
         </div>
       </motion.div>
 
-      <div className="flex-1 relative min-h-0 overflow-hidden">
-        <div
-          className="absolute inset-0 z-[1] pointer-events-none"
-          style={{
-            boxShadow:
-              'inset 0 0 100px rgba(0, 0, 0, 0.42), inset 0 0 40px rgba(0, 0, 0, 0.28)',
-          }}
-          aria-hidden
-        />
-        <NodeGraph nodes={interpolated.nodes} />
-
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.35, duration: 0.55, ease: 'easeOut' }}
-          className="absolute bottom-4 left-5 sm:left-7 rounded-2xl px-4 py-3 space-y-2.5 z-20 glass-frosted max-w-[220px]"
-        >
-          <p className="font-body text-[10px] tracking-widest text-text-dim uppercase">
-            Node types
-          </p>
-          <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full bg-value shrink-0" />
-            <span className="text-[11px] text-text-muted">High-Value (LIKE)</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: '#b5843d' }} />
-            <span className="text-[11px] text-text-muted">Neutral (WAIT)</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full bg-toxic shrink-0" />
-            <span className="text-[11px] text-text-muted">Toxic (SKIP)</span>
-          </div>
-        </motion.div>
-
-        <MindfulnessOverlay
-          toxicIntercepted={interpolated.stats.toxic_intercepted}
-          rewiringPct={interpolated.stats.rewiring_pct}
-        />
-      </div>
-
-      <div
-        className="shrink-0 border-t border-stone-400/25"
-        style={{ background: 'rgba(253, 250, 246, 0.4)' }}
-      >
-        <div className="max-w-7xl mx-auto px-6 sm:px-8 py-4 sm:py-5">
-          <TimelineScrubberInline
-            progress={progress}
-            onChange={handleProgressChange}
-            label={interpolated.label}
-            snapLabels={snapLabels}
-            activeSnapIdx={activeSnapIdx}
+      <div className="flex-1 min-h-0 px-4 sm:px-6 md:px-8 pb-2">
+        <div className="relative h-full min-h-0 overflow-hidden rounded-[1.25rem] border border-stone-400/20">
+          <div
+            className="absolute inset-0 z-1 pointer-events-none"
+            style={{
+              boxShadow:
+                'inset 0 0 100px rgba(0, 0, 0, 0.42), inset 0 0 40px rgba(0, 0, 0, 0.28)',
+            }}
+            aria-hidden
           />
+          <NodeGraph nodes={interpolated.nodes} />
+
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35, duration: 0.55, ease: 'easeOut' }}
+            className="absolute bottom-4 left-5 sm:left-7 rounded-2xl px-4 py-3 space-y-2.5 z-20 glass-frosted max-w-[220px]"
+            style={{
+              background: 'rgba(120, 120, 120, 0.22)',
+              borderColor: 'rgba(255, 255, 255, 0.18)',
+            }}
+          >
+            <p className="font-body text-[10px] tracking-widest text-white/80 uppercase">
+              Node types
+            </p>
+            <div className="flex items-center gap-2">
+              <div className="w-2.5 h-2.5 rounded-full bg-value shrink-0" />
+              <span className="text-[11px] text-white">High-Value (LIKE)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: '#b5843d' }} />
+              <span className="text-[11px] text-white">Neutral (WAIT)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2.5 h-2.5 rounded-full bg-toxic shrink-0" />
+              <span className="text-[11px] text-white">Toxic (SKIP)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="relative w-2.5 h-2.5 shrink-0">
+                <div className="absolute left-1/2 top-0 bottom-0 w-px bg-white/90 -translate-x-1/2" />
+                <div className="absolute top-1/2 left-0 right-0 h-px bg-white/90 -translate-y-1/2" />
+              </div>
+              <span className="text-[11px] text-white">Focus</span>
+            </div>
+          </motion.div>
+          <div className="absolute left-1/2 top-1/2 z-20 pointer-events-none -translate-x-1/2 -translate-y-1/2 opacity-80">
+            <div className="relative w-5 h-5">
+              <div className="absolute left-1/2 top-0 bottom-0 w-px bg-white/70 -translate-x-1/2" />
+              <div className="absolute top-1/2 left-0 right-0 h-px bg-white/70 -translate-y-1/2" />
+              <div className="absolute left-1/2 top-1/2 w-1 h-1 rounded-full bg-white/80 -translate-x-1/2 -translate-y-1/2" />
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  );
-}
 
-function RewiringPercent({ value }: { value: number }) {
-  const n = useCountUp(value, 700);
-  return (
-    <span className="font-body text-xs text-value tabular-nums w-9 text-right font-medium shrink-0">
-      {n}%
-    </span>
+      <div className="shrink-0 px-6 sm:px-8 py-4 sm:py-5">
+        <TimelineScrubberInline
+          progress={progress}
+          onChange={handleProgressChange}
+          label={interpolated.label}
+          snapLabels={snapLabels}
+          activeSnapIdx={activeSnapIdx}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -375,7 +355,7 @@ function TimelineScrubberInline({
           return (
             <div
               key={i}
-              className="absolute top-1/2 z-[1]"
+              className="absolute top-1/2 z-1"
               style={{
                 left: `${(i / n) * 100}%`,
                 transform: 'translate(-50%, -50%)',
@@ -408,7 +388,7 @@ function TimelineScrubberInline({
           );
         })}
 
-        <div className="absolute top-1/2 z-[2]" style={{ left: `${progress * 100}%` }}>
+        <div className="absolute top-1/2 z-2" style={{ left: `${progress * 100}%` }}>
           <div
             className="w-[18px] h-[18px] rounded-full -translate-x-1/2 -translate-y-1/2 border-2 border-[rgba(253,250,246,0.95)] shadow-md"
             style={{

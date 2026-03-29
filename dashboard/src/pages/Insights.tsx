@@ -143,7 +143,7 @@ export default function Insights({ userId, interests = [] }: InsightsProps) {
       initial="hidden"
       animate="show"
     >
-      <div className="max-w-5xl mx-auto px-6 sm:px-10 py-8 sm:py-10 space-y-8">
+      <div className="w-full px-6 sm:px-10 py-8 sm:py-10 space-y-8">
         {/* Header with refresh */}
         <motion.div variants={staggerItem} className="flex items-start justify-between gap-4">
           <div>
