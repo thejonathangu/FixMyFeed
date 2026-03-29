@@ -61,10 +61,14 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
 
   const getColor = (category: 'toxic' | 'value', weight: number, alpha = 1) => {
     if (category === 'value') {
-      return `rgba(0, ${Math.round(155 + weight * 100)}, ${Math.round(170 + weight * 43)}, ${alpha})`;
-    } else {
-      return `rgba(${Math.round(42 + weight * 213)}, ${Math.round(42 + weight * 4)}, ${Math.round(46)}, ${alpha})`;
+      const g = 109 + weight * 40;
+      const b = 90 + weight * 35;
+      return `rgba(90, ${Math.round(g)}, ${Math.round(b)}, ${alpha})`;
     }
+    const r = 120 + weight * 70;
+    const g = 90 + weight * 25;
+    const b = 90 + weight * 18;
+    return `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, ${alpha})`;
   };
 
   const hitTest = useCallback(
@@ -210,13 +214,13 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
 
           if (isHighlighted) {
             const isVal = n.category === 'value';
-            ctx.strokeStyle = isVal ? 'rgba(0, 255, 213, 0.4)' : 'rgba(255, 46, 46, 0.3)';
+            ctx.strokeStyle = isVal ? 'rgba(78, 119, 84, 0.45)' : 'rgba(168, 96, 99, 0.4)';
             ctx.lineWidth = 1.5;
           } else if (isDimmed) {
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.015)';
+            ctx.strokeStyle = 'rgba(44, 38, 31, 0.04)';
             ctx.lineWidth = 0.5;
           } else {
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+            ctx.strokeStyle = 'rgba(44, 38, 31, 0.08)';
             ctx.lineWidth = 0.5;
           }
           ctx.stroke();
@@ -263,7 +267,7 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
 
         if (isActive && n.category === 'toxic') {
           const grad = ctx.createRadialGradient(sx, sy, r * 0.3, sx, sy, r * 2);
-          grad.addColorStop(0, `rgba(255, 46, 46, ${0.12 * depthAlpha})`);
+          grad.addColorStop(0, `rgba(168, 96, 99, ${0.14 * depthAlpha})`);
           grad.addColorStop(1, 'rgba(0,0,0,0)');
           ctx.beginPath();
           ctx.arc(sx, sy, r * 2, 0, Math.PI * 2);
@@ -294,22 +298,22 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
         // Label
         if (!isDimmed) {
           const fontSize = Math.max(8, Math.min(11, r * 0.45));
-          ctx.font = `${fontSize}px "Departure Mono", monospace`;
+          ctx.font = `500 ${fontSize}px "DM Sans", system-ui, sans-serif`;
           ctx.textAlign = 'center';
 
           if (r >= 18) {
             ctx.textBaseline = 'middle';
             ctx.fillStyle =
               n.category === 'value'
-                ? `rgba(5, 5, 8, ${Math.min(1, cur.weight * 1.4) * depthAlpha})`
-                : `rgba(255, 255, 255, ${Math.min(0.85, cur.weight * 1.0) * depthAlpha})`;
+                ? `rgba(44, 38, 31, ${Math.min(0.35, cur.weight * 0.5) * depthAlpha})`
+                : `rgba(253, 250, 246, ${Math.min(0.9, cur.weight * 1.0) * depthAlpha})`;
             ctx.fillText(n.theme_name, sx, sy);
           } else {
             ctx.textBaseline = 'top';
             ctx.fillStyle =
               n.category === 'value'
-                ? `rgba(0, 255, 213, ${Math.max(0.4, cur.weight) * depthAlpha})`
-                : `rgba(255, 100, 100, ${Math.max(0.3, cur.weight * 0.7) * depthAlpha})`;
+                ? `rgba(78, 119, 84, ${Math.max(0.35, cur.weight) * depthAlpha})`
+                : `rgba(200, 140, 130, ${Math.max(0.35, cur.weight * 0.75) * depthAlpha})`;
             ctx.fillText(n.theme_name, sx, sy + r + 4);
           }
         }
@@ -443,10 +447,10 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
       {rotation.rx === 0 && rotation.ry === 0 && (
         <div className="absolute bottom-3 right-3 z-20 pointer-events-none">
           <div
-            className="rounded-md px-2.5 py-1 font-display text-[8px] tracking-[0.15em] text-text-dim uppercase"
+            className="rounded-md px-2.5 py-1 font-body text-[9px] tracking-wide text-text-dim uppercase"
             style={{
-              background: 'rgba(5, 5, 8, 0.6)',
-              border: '1px solid rgba(255,255,255,0.04)',
+              background: 'rgba(253, 250, 246, 0.88)',
+              border: '1px solid rgba(44,38,31,0.12)',
             }}
           >
             Shift+Drag to rotate
@@ -469,18 +473,18 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
             <div
               className="rounded-lg border px-3 py-2 max-w-xs"
               style={{
-                background: 'rgba(10, 10, 18, 0.95)',
+                background: 'rgba(253, 250, 246, 0.95)',
                 borderColor:
                   hovered.node.category === 'value'
-                    ? 'rgba(0, 255, 213, 0.2)'
-                    : 'rgba(255, 46, 46, 0.2)',
-                backdropFilter: 'blur(12px)',
+                    ? 'rgba(78, 119, 84, 0.35)'
+                    : 'rgba(168, 96, 99, 0.35)',
+                backdropFilter: 'blur(10px)',
               }}
             >
               <p
-                className="font-display text-[10px] tracking-[0.15em] uppercase mb-0.5"
+                className="font-body text-[10px] tracking-wide uppercase mb-0.5 font-medium"
                 style={{
-                  color: hovered.node.category === 'value' ? '#00ffd5' : '#ff2e2e',
+                  color: hovered.node.category === 'value' ? '#4e7754' : '#a86063',
                 }}
               >
                 {hovered.node.category === 'value' ? 'High Value' : 'Toxic'}
@@ -508,14 +512,13 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
             <div
               className="rounded-xl border overflow-hidden"
               style={{
-                background:
-                  'linear-gradient(135deg, rgba(10, 10, 18, 0.95), rgba(12, 12, 20, 0.9))',
+                background: 'rgba(253, 250, 246, 0.94)',
                 borderColor:
                   selected.node.category === 'value'
-                    ? 'rgba(0, 255, 213, 0.12)'
-                    : 'rgba(255, 46, 46, 0.12)',
-                backdropFilter: 'blur(20px)',
-                boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)',
+                    ? 'rgba(78, 119, 84, 0.25)'
+                    : 'rgba(168, 96, 99, 0.25)',
+                backdropFilter: 'blur(12px)',
+                boxShadow: '0 12px 40px rgba(44, 38, 31, 0.12)',
               }}
             >
               <div
@@ -523,15 +526,15 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
                 style={{
                   background:
                     selected.node.category === 'value'
-                      ? 'linear-gradient(90deg, transparent, #00ffd5, transparent)'
-                      : 'linear-gradient(90deg, transparent, #ff2e2e, transparent)',
+                      ? 'linear-gradient(90deg, transparent, #4e7754, transparent)'
+                      : 'linear-gradient(90deg, transparent, #a86063, transparent)',
                 }}
               />
 
               <div className="p-5">
                 <button
                   onClick={() => setSelected(null)}
-                  className="absolute top-3 right-3 w-6 h-6 flex items-center justify-center rounded-full text-text-dim hover:text-text-primary hover:bg-white/5 transition-colors text-xs"
+                  className="absolute top-3 right-3 w-6 h-6 flex items-center justify-center rounded-full text-text-dim hover:text-text-primary hover:bg-stone-400/20 transition-colors text-xs"
                 >
                   ✕
                 </button>
@@ -541,22 +544,22 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
                   style={{
                     background:
                       selected.node.category === 'value'
-                        ? 'rgba(0, 255, 213, 0.08)'
-                        : 'rgba(255, 46, 46, 0.08)',
+                        ? 'rgba(78, 119, 84, 0.12)'
+                        : 'rgba(168, 96, 99, 0.12)',
                   }}
                 >
                   <div
                     className="w-1.5 h-1.5 rounded-full"
                     style={{
                       background:
-                        selected.node.category === 'value' ? '#00ffd5' : '#ff2e2e',
+                        selected.node.category === 'value' ? '#4e7754' : '#a86063',
                     }}
                   />
                   <span
-                    className="font-display text-[9px] tracking-[0.15em] uppercase"
+                    className="font-body text-[9px] tracking-wide uppercase font-medium"
                     style={{
                       color:
-                        selected.node.category === 'value' ? '#00ffd5' : '#ff2e2e',
+                        selected.node.category === 'value' ? '#4e7754' : '#a86063',
                     }}
                   >
                     {selected.node.category === 'value' ? 'High Value' : 'Toxic Pattern'}
@@ -572,14 +575,14 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
 
                 <div className="mb-4">
                   <div className="flex justify-between items-center mb-1.5">
-                    <span className="font-display text-[9px] tracking-[0.15em] text-text-dim uppercase">
-                      Influence Weight
+                    <span className="font-body text-[9px] tracking-wide text-text-dim uppercase">
+                      Influence weight
                     </span>
-                    <span className="font-display text-xs text-text-muted tabular-nums">
+                    <span className="font-body text-xs text-text-muted tabular-nums">
                       {Math.round(selected.node.weight * 100)}%
                     </span>
                   </div>
-                  <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                  <div className="h-1.5 rounded-full bg-stone-400/35 overflow-hidden">
                     <motion.div
                       className="h-full rounded-full"
                       initial={{ width: 0 }}
@@ -588,8 +591,8 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
                       style={{
                         background:
                           selected.node.category === 'value'
-                            ? 'linear-gradient(90deg, #1a6bff, #00ffd5)'
-                            : 'linear-gradient(90deg, #4a1515, #ff2e2e)',
+                            ? 'linear-gradient(90deg, #6b6560, #4e7754)'
+                            : 'linear-gradient(90deg, #9e585e, #a86063)',
                       }}
                     />
                   </div>
@@ -597,7 +600,7 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
 
                 {connectedNodes.length > 0 && (
                   <div>
-                    <p className="font-display text-[9px] tracking-[0.15em] text-text-dim uppercase mb-2">
+                    <p className="font-body text-[9px] tracking-wide text-text-dim uppercase mb-2">
                       Connected Nodes ({connectedNodes.length})
                     </p>
                     <div className="space-y-1.5 max-h-40 overflow-y-auto">
@@ -605,12 +608,12 @@ export default function NodeGraph({ nodes }: { nodes: NodeData[] }) {
                         <button
                           key={cn.id}
                           onClick={() => setSelected({ node: cn })}
-                          className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-white/[0.03] transition-colors text-left"
+                          className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-stone-500/15 transition-colors text-left"
                         >
                           <div
                             className="w-2 h-2 rounded-full shrink-0"
                             style={{
-                              background: cn.category === 'value' ? '#00ffd5' : '#ff2e2e',
+                              background: cn.category === 'value' ? '#4e7754' : '#a86063',
                               opacity: Math.max(0.4, cn.weight),
                             }}
                           />

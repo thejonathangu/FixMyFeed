@@ -2,7 +2,18 @@ const isIg = window.location.hostname.includes("instagram.com");
 const isTikTok = window.location.hostname.includes("tiktok.com");
 const CREDIT_REFRESH_MS = 30000;
 var latestCreditStatus = null;
+var FIXMYFEED_FONT =
+  '"DM Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
 
+function ensureFixMyFeedUiFont() {
+  if (document.getElementById("fixmyfeed-ui-font")) return;
+  var link = document.createElement("link");
+  link.id = "fixmyfeed-ui-font";
+  link.rel = "stylesheet";
+  link.href =
+    "https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600&display=swap";
+  document.head.appendChild(link);
+}
 
 // ---------------------------------------------------------------------------
 // Watch tracking - tracks current video being watched for duration logging
@@ -46,14 +57,22 @@ function applyCreditFilter(creditStatus) {
 }
 
 function formatCreditLine(creditStatus) {
-  if (!creditStatus) return "🎨 Color credits: --/30 (1h)";
-  return "🎨 Color credits: " + creditStatus.remaining_credits + "/" + creditStatus.max_credits + " (1h)";
+  if (!creditStatus) return "Color credits: -- / 30 (1h)";
+  return (
+    "Color credits: " +
+    creditStatus.remaining_credits +
+    " / " +
+    creditStatus.max_credits +
+    " (1h)"
+  );
 }
 
 function updateDashboardCredits(dashboard, creditStatus) {
   if (!dashboard || !dashboard.parentNode) return;
   const baseLabel = dashboard.getAttribute("data-base-label") || "";
-  dashboard.setAttribute("data-base-label", baseLabel.split("\n🎨 Color credits:")[0] + "\n" + formatCreditLine(creditStatus));
+  var noLegacy = baseLabel.replace(/\n🎨 Color credits:[^\n]*/g, "");
+  var prefix = noLegacy.split("\nColor credits:")[0].trim();
+  dashboard.setAttribute("data-base-label", prefix + "\n" + formatCreditLine(creditStatus));
   dashboard.textContent = dashboard.getAttribute("data-base-label");
 }
 
@@ -133,12 +152,13 @@ function lockScroll(seconds, dashboard) {
 
   function updateCountdown() {
     if (remaining > 0 && dashboard && dashboard.parentNode) {
-      dashboard.textContent = dashboard.getAttribute("data-base-label") + "\n🔒 SCROLL LOCKED: " + remaining + "s";
+      dashboard.textContent =
+        dashboard.getAttribute("data-base-label") + "\nScroll locked: " + remaining + "s";
       remaining--;
       lockTimeout = setTimeout(updateCountdown, 1000);
     } else {
       if (dashboard && dashboard.parentNode) {
-        dashboard.textContent = dashboard.getAttribute("data-base-label") + "\n✓ Scroll unlocked";
+        dashboard.textContent = dashboard.getAttribute("data-base-label") + "\nScroll unlocked";
       }
     }
   }
@@ -306,15 +326,20 @@ function scrapeVideoData(container) {
 // Loading overlay (from upstream)
 // ---------------------------------------------------------------------------
 function createLoadingOverlay() {
+  ensureFixMyFeedUiFont();
   var overlay = document.createElement("div");
   overlay.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2147483646;";
 
   var spinner = document.createElement("div");
-  spinner.style.cssText = "width:60px;height:60px;border:4px solid #222;border-top:4px solid #39ff14;border-radius:50%;animation:shadowspin 0.8s linear infinite;";
+  spinner.style.cssText =
+    "width:64px;height:64px;border:4px solid #333;border-top-color:#fff;border-radius:50%;animation:shadowspin 0.8s linear infinite;";
 
   var text = document.createElement("div");
-  text.style.cssText = "color:#39ff14;font-family:monospace;font-size:16px;margin-top:20px;";
-  text.textContent = "AI evaluating content...";
+  text.style.cssText =
+    "color:#f5f5f5;font-family:" +
+    FIXMYFEED_FONT +
+    ";font-size:20px;font-weight:500;margin-top:28px;letter-spacing:0.02em;";
+  text.textContent = "Evaluating content...";
 
   var style = document.createElement("style");
   style.textContent = "@keyframes shadowspin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}";
@@ -462,22 +487,28 @@ const observer = new IntersectionObserver((entries) => {
 
         if (loadingOverlay && loadingOverlay.parentNode) loadingOverlay.remove();
 
+        ensureFixMyFeedUiFont();
         enableSoundInContainer(container);
 
         const dashboard = document.createElement("div");
         dashboard.style.position = "fixed";
-        dashboard.style.top = "10px";
-        dashboard.style.left = "10px";
-        dashboard.style.backgroundColor = "rgba(0, 0, 0, 0.9)";
-        dashboard.style.color = "#39ff14";
-        dashboard.style.fontFamily = "monospace";
-        dashboard.style.fontSize = "14px";
-        dashboard.style.padding = "12px 18px";
+        dashboard.style.top = "12px";
+        dashboard.style.left = "12px";
+        dashboard.style.backgroundColor = "#0a0a0a";
+        dashboard.style.color = "#f5f5f5";
+        dashboard.style.fontFamily = FIXMYFEED_FONT;
+        dashboard.style.fontSize = "16px";
+        dashboard.style.fontWeight = "400";
+        dashboard.style.lineHeight = "1.5";
+        dashboard.style.padding = "18px 22px";
         dashboard.style.zIndex = "2147483647";
-        dashboard.style.borderRadius = "6px";
-        dashboard.style.border = "1px solid #39ff14";
+        dashboard.style.borderRadius = "10px";
+        dashboard.style.border = "1px solid #2a2a2a";
+        dashboard.style.boxShadow = "0 8px 32px rgba(0, 0, 0, 0.45)";
         dashboard.style.pointerEvents = "none";
         dashboard.style.whiteSpace = "pre-line";
+        dashboard.style.maxWidth = "min(94vw, 420px)";
+        dashboard.style.letterSpacing = "0.01em";
 
         var label = "ACTION: " + action + " | SCORE: " + score;
         if (response.data.reason) label += "\n" + response.data.reason;
@@ -536,7 +567,9 @@ const observer = new IntersectionObserver((entries) => {
           setTimeout(() => {
             unlockScroll();
             if (dashboard && dashboard.parentNode) {
-              dashboard.textContent = dashboard.getAttribute("data-base-label") + "\n✓ Scroll unlocked - watching...";
+              dashboard.textContent =
+                dashboard.getAttribute("data-base-label") +
+                "\nScroll unlocked. Watching this clip.";
             }
           }, 5000);
         });
@@ -588,3 +621,4 @@ setInterval(refreshCreditStatusAndFilter, CREDIT_REFRESH_MS);
 if (isIg) {
   console.log("[Shadow-Scroll] Instagram mode active - watching for reels...");
 }
+

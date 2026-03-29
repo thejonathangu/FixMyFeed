@@ -2,11 +2,15 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import NodeGraph from '../components/NodeGraph';
 import MindfulnessOverlay from '../components/MindfulnessOverlay';
+import { useCountUp } from '../hooks/useCountUp';
 import {
   fetchEvolvingDopamineStats,
   interpolateSnapshots,
   type Snapshot,
 } from '../services/dataService';
+
+const ROSE = '#a86063';
+const GREEN = '#4e7754';
 
 export default function NeuralMap() {
   const [snapshots, setSnapshots] = useState<Snapshot[] | null>(null);
@@ -26,6 +30,11 @@ export default function NeuralMap() {
     [snapshots],
   );
 
+  const activeSnapIdx = useMemo(() => {
+    if (snapLabels.length <= 1) return 0;
+    return Math.round(progress * (snapLabels.length - 1));
+  }, [progress, snapLabels.length]);
+
   const handleProgressChange = useCallback((p: number) => setProgress(p), []);
 
   if (!interpolated) {
@@ -35,11 +44,11 @@ export default function NeuralMap() {
           <motion.div
             animate={{ rotate: 360 }}
             transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
-            className="w-10 h-10 mx-auto mb-3 border border-value/30 rounded-full"
-            style={{ borderTopColor: '#00ffd5' }}
+            className="w-10 h-10 mx-auto mb-3 border rounded-full border-stone-300"
+            style={{ borderTopColor: GREEN }}
           />
-          <p className="font-display text-[10px] tracking-[0.3em] text-text-dim uppercase">
-            Mapping Neural Topology
+          <p className="font-body text-xs tracking-widest text-text-dim uppercase">
+            Loading map
           </p>
         </div>
       </div>
@@ -48,64 +57,78 @@ export default function NeuralMap() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Stats bar — centered */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="shrink-0 border-b border-white/[0.03]"
+        transition={{ delay: 0.15, duration: 0.4 }}
+        className="shrink-0 border-b border-stone-400/25"
+        style={{ background: 'rgba(253, 250, 246, 0.35)' }}
       >
-        <div className="max-w-7xl mx-auto flex items-center gap-6 px-8 py-3">
-          <StatPill label="Intercepted" value={interpolated.stats.toxic_intercepted} color="#ff2e2e" />
-          <StatPill label="Reinforced" value={interpolated.stats.value_reinforced} color="#00ffd5" />
-          <div className="ml-auto flex items-center gap-2">
-            <span className="font-display text-[10px] tracking-[0.15em] text-text-dim uppercase">
+        <div className="max-w-7xl mx-auto flex flex-wrap items-center gap-4 sm:gap-5 px-6 sm:px-8 py-3.5 sm:py-4">
+          <StatPillBadge
+            label="Intercepted"
+            value={interpolated.stats.toxic_intercepted}
+            accent="rose"
+          />
+          <StatPillBadge
+            label="Reinforced"
+            value={interpolated.stats.value_reinforced}
+            accent="green"
+          />
+          <div className="w-full sm:w-auto sm:ml-auto flex items-center gap-3 min-w-0">
+            <span className="font-body text-[10px] tracking-wide text-text-dim uppercase shrink-0">
               Rewiring
             </span>
-            <div className="w-16 h-1 rounded-full bg-white/[0.06] overflow-hidden">
+            <div className="flex-1 sm:flex-initial sm:w-36 h-2 rounded-full overflow-hidden bg-stone-400/25 border border-stone-500/10">
               <motion.div
-                className="h-full rounded-full"
-                style={{ background: 'linear-gradient(90deg, #1a6bff, #00ffd5)' }}
-                animate={{ width: `${interpolated.stats.rewiring_pct}%` }}
-                transition={{ duration: 0.4 }}
+                className="h-full rounded-full origin-left w-full"
+                style={{
+                  background: 'linear-gradient(90deg, #6b6560, #4e7754)',
+                  boxShadow: '0 0 12px rgba(78, 119, 84, 0.38)',
+                }}
+                initial={false}
+                animate={{ scaleX: interpolated.stats.rewiring_pct / 100 }}
+                transition={{ duration: 0.85, ease: [0.22, 1, 0.36, 1] }}
               />
             </div>
-            <span className="font-display text-xs text-value tabular-nums w-7 text-right">
-              {interpolated.stats.rewiring_pct}%
-            </span>
+            <RewiringPercent value={interpolated.stats.rewiring_pct} />
           </div>
         </div>
       </motion.div>
 
-      {/* Graph area */}
-      <div className="flex-1 relative min-h-0">
+      <div className="flex-1 relative min-h-0 overflow-hidden">
+        <div
+          className="absolute inset-0 z-[1] pointer-events-none"
+          style={{
+            boxShadow:
+              'inset 0 0 100px rgba(0, 0, 0, 0.42), inset 0 0 40px rgba(0, 0, 0, 0.28)',
+          }}
+          aria-hidden
+        />
         <NodeGraph nodes={interpolated.nodes} />
 
-        {/* Legend */}
-        <div
-          className="absolute bottom-4 left-6 rounded-lg border px-3 py-2.5 space-y-2 z-20"
-          style={{
-            background: 'rgba(5, 5, 8, 0.85)',
-            borderColor: 'rgba(255, 255, 255, 0.05)',
-            backdropFilter: 'blur(12px)',
-          }}
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35, duration: 0.55, ease: 'easeOut' }}
+          className="absolute bottom-4 left-5 sm:left-7 rounded-2xl px-4 py-3 space-y-2.5 z-20 glass-frosted max-w-[220px]"
         >
-          <p className="font-display text-[8px] tracking-[0.2em] text-text-dim uppercase">
-            Node Types
+          <p className="font-body text-[10px] tracking-widest text-text-dim uppercase">
+            Node types
           </p>
-          <div className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-value shadow-[0_0_6px_#00ffd540]" />
-            <span className="text-[10px] text-text-muted">High-Value</span>
+          <div className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-full bg-value shrink-0" />
+            <span className="text-[11px] text-text-muted">High-Value</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-toxic shadow-[0_0_6px_#ff2e2e30]" />
-            <span className="text-[10px] text-text-muted">Toxic</span>
+          <div className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-full bg-toxic shrink-0" />
+            <span className="text-[11px] text-text-muted">Toxic</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-toxic-dead" />
-            <span className="text-[10px] text-text-muted">Neutralized</span>
+          <div className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-full bg-toxic-dead shrink-0" />
+            <span className="text-[11px] text-text-muted">Neutralized</span>
           </div>
-        </div>
+        </motion.div>
 
         <MindfulnessOverlay
           toxicIntercepted={interpolated.stats.toxic_intercepted}
@@ -113,14 +136,17 @@ export default function NeuralMap() {
         />
       </div>
 
-      {/* Timeline scrubber — centered */}
-      <div className="shrink-0 border-t border-white/[0.03]">
-        <div className="max-w-7xl mx-auto px-8 py-4">
+      <div
+        className="shrink-0 border-t border-stone-400/25"
+        style={{ background: 'rgba(253, 250, 246, 0.4)' }}
+      >
+        <div className="max-w-7xl mx-auto px-6 sm:px-8 py-4 sm:py-5">
           <TimelineScrubberInline
             progress={progress}
             onChange={handleProgressChange}
             label={interpolated.label}
             snapLabels={snapLabels}
+            activeSnapIdx={activeSnapIdx}
           />
         </div>
       </div>
@@ -128,12 +154,50 @@ export default function NeuralMap() {
   );
 }
 
-function StatPill({ label, value, color }: { label: string; value: number; color: string }) {
+function RewiringPercent({ value }: { value: number }) {
+  const n = useCountUp(value, 700);
   return (
-    <div className="flex items-center gap-1.5">
-      <div className="w-1.5 h-1.5 rounded-full" style={{ background: color }} />
-      <span className="font-display text-xs text-text-primary tabular-nums">{value}</span>
-      <span className="font-display text-[9px] text-text-dim tracking-wider uppercase">{label}</span>
+    <span className="font-body text-xs text-value tabular-nums w-9 text-right font-medium shrink-0">
+      {n}%
+    </span>
+  );
+}
+
+function StatPillBadge({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: number;
+  accent: 'rose' | 'green';
+}) {
+  const n = useCountUp(value, 650);
+  const isRose = accent === 'rose';
+  const dot = isRose ? ROSE : GREEN;
+  const border = isRose ? 'rgba(168, 96, 99, 0.38)' : 'rgba(78, 119, 84, 0.38)';
+  const bg = isRose
+    ? 'linear-gradient(135deg, rgba(168, 96, 99, 0.2) 0%, rgba(253, 250, 246, 0.65) 55%, rgba(255, 255, 255, 0.35) 100%)'
+    : 'linear-gradient(135deg, rgba(78, 119, 84, 0.18) 0%, rgba(253, 250, 246, 0.65) 55%, rgba(255, 255, 255, 0.35) 100%)';
+
+  return (
+    <div
+      className="inline-flex items-center gap-2.5 pl-3 pr-4 py-2 rounded-full border shadow-sm"
+      style={{
+        background: bg,
+        borderColor: border,
+        boxShadow: '0 1px 3px rgba(44, 38, 31, 0.06)',
+      }}
+    >
+      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: dot }} />
+      <span className="font-body text-lg sm:text-xl text-text-primary tabular-nums font-semibold leading-none">
+        {n}
+      </span>
+      <span
+        className="font-body text-[10px] text-text-dim tracking-wide uppercase leading-tight"
+      >
+        {label}
+      </span>
     </div>
   );
 }
@@ -143,11 +207,13 @@ function TimelineScrubberInline({
   onChange,
   label,
   snapLabels,
+  activeSnapIdx,
 }: {
   progress: number;
   onChange: (p: number) => void;
   label: string;
   snapLabels: string[];
+  activeSnapIdx: number;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
@@ -162,20 +228,27 @@ function TimelineScrubberInline({
     [onChange],
   );
 
+  const n = Math.max(1, snapLabels.length - 1);
+
   return (
     <div className="max-w-4xl mx-auto w-full">
-      <div className="flex items-center justify-between mb-2">
-        <span className="font-display text-[10px] tracking-[0.15em] text-text-dim uppercase">
-          Timeline
-        </span>
-        <span className="font-display text-xs tracking-widest text-text-muted uppercase">
+      <div className="flex items-end justify-between gap-3 mb-3">
+        <div>
+          <span className="font-body text-[10px] tracking-widest text-text-dim uppercase block mb-1">
+            Timeline
+          </span>
+          <span className="font-body text-[11px] text-text-muted tabular-nums">
+            Drag to scrub · click markers
+          </span>
+        </div>
+        <span className="font-body text-xs tracking-wide text-text-primary font-medium text-right">
           {label}
         </span>
       </div>
 
       <div
         ref={trackRef}
-        className="relative h-8 cursor-pointer select-none"
+        className="relative h-10 cursor-pointer select-none touch-none"
         onPointerDown={(e) => {
           dragging.current = true;
           (e.target as HTMLElement).setPointerCapture(e.pointerId);
@@ -187,43 +260,96 @@ function TimelineScrubberInline({
         onPointerUp={() => {
           dragging.current = false;
         }}
+        onPointerCancel={() => {
+          dragging.current = false;
+        }}
       >
-        <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-[2px] bg-white/[0.06] rounded-full" />
+        <div className="flex justify-between px-0 mb-1">
+          <span className="font-body text-[10px] uppercase tracking-wider text-text-dim">
+            Start
+          </span>
+          <span className="font-body text-[10px] uppercase tracking-wider text-text-dim">
+            End
+          </span>
+        </div>
+
         <div
-          className="absolute top-1/2 -translate-y-1/2 left-0 h-[2px] rounded-full"
+          className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-2 rounded-full overflow-hidden"
           style={{
-            width: `${progress * 100}%`,
-            background: 'linear-gradient(90deg, #1a6bff, #00ffd5)',
-            boxShadow: '0 0 10px #00ffd530',
+            background: 'linear-gradient(180deg, rgba(120, 113, 102, 0.22), rgba(180, 170, 155, 0.14))',
+            boxShadow: 'inset 0 1px 2px rgba(44, 38, 31, 0.12)',
           }}
-        />
-        {snapLabels.map((_, i) => (
-          <div
-            key={i}
-            className="absolute top-1/2 w-1.5 h-1.5 rounded-full bg-white/15"
+        >
+          <motion.div
+            className="absolute inset-y-0 left-0 rounded-full"
             style={{
-              left: `${(i / (snapLabels.length - 1)) * 100}%`,
-              transform: 'translate(-50%, -50%)',
+              width: `${progress * 100}%`,
+              background: 'linear-gradient(90deg, rgba(107, 101, 96, 0.9), rgba(78, 119, 84, 0.96))',
+              boxShadow: 'inset 0 -1px 0 rgba(0,0,0,0.06)',
             }}
+            initial={false}
+            animate={{ width: `${progress * 100}%` }}
+            transition={{ duration: 0.15 }}
           />
-        ))}
-        <div className="absolute top-1/2" style={{ left: `${progress * 100}%` }}>
+        </div>
+
+        {snapLabels.map((_, i) => {
+          const isActive = i === activeSnapIdx;
+          return (
+            <div
+              key={i}
+              className="absolute top-1/2 z-[1]"
+              style={{
+                left: `${(i / n) * 100}%`,
+                transform: 'translate(-50%, -50%)',
+              }}
+            >
+              <motion.button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onChange(i / n);
+                }}
+                className="rounded-full border border-stone-500/25 bg-[rgba(253,250,246,0.92)] shadow-sm block"
+                style={{
+                  width: isActive ? 12 : 9,
+                  height: isActive ? 12 : 9,
+                }}
+                animate={
+                  isActive
+                    ? { scale: [1, 1.12, 1], boxShadow: ['0 0 0 0 rgba(78,119,84,0.4)', '0 0 0 6px rgba(78,119,84,0.14)', '0 0 0 0 rgba(78,119,84,0.4)'] }
+                    : {}
+                }
+                transition={
+                  isActive
+                    ? { duration: 1.6, repeat: Infinity, ease: 'easeInOut' }
+                    : {}
+                }
+                aria-label={`Jump to ${snapLabels[i] ?? i}`}
+              />
+            </div>
+          );
+        })}
+
+        <div className="absolute top-1/2 z-[2]" style={{ left: `${progress * 100}%` }}>
           <div
-            className="w-4 h-4 rounded-full -translate-x-1/2 -translate-y-1/2"
+            className="w-[18px] h-[18px] rounded-full -translate-x-1/2 -translate-y-1/2 border-2 border-[rgba(253,250,246,0.95)] shadow-md"
             style={{
-              background: 'linear-gradient(135deg, #1a6bff, #00ffd5)',
-              boxShadow: '0 0 14px #00ffd560',
+              background: 'linear-gradient(145deg, #6b6560, #4e7754)',
             }}
           />
         </div>
       </div>
 
-      <div className="flex justify-between mt-1">
+      <div className="flex justify-between gap-1 mt-2 overflow-x-auto pb-1">
         {snapLabels.map((lbl, i) => (
           <button
             key={i}
-            onClick={() => onChange(i / (snapLabels.length - 1))}
-            className="font-display text-[9px] tracking-wider text-text-dim hover:text-value transition-colors"
+            type="button"
+            onClick={() => onChange(i / n)}
+            className={`font-body text-[10px] tracking-wide transition-colors shrink-0 px-0.5 ${
+              i === activeSnapIdx ? 'text-text-primary font-semibold' : 'text-text-dim hover:text-text-primary'
+            }`}
           >
             {lbl}
           </button>

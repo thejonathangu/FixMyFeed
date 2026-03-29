@@ -62,27 +62,19 @@ export default function MindfulnessOverlay({ toxicIntercepted, rewiringPct }: Mi
             <div
               className="relative overflow-hidden rounded-lg border px-4 py-3"
               style={{
-                background: 'linear-gradient(135deg, #0a0a12ee, #0d0d1add)',
-                borderColor: 'rgba(0, 255, 213, 0.12)',
-                boxShadow: '0 0 30px rgba(0, 255, 213, 0.06), 0 8px 32px rgba(0,0,0,0.5)',
-                backdropFilter: 'blur(16px)',
+                background: 'rgba(253, 250, 246, 0.92)',
+                borderColor: 'rgba(44, 38, 31, 0.14)',
+                boxShadow: '0 4px 24px rgba(44, 38, 31, 0.08)',
+                backdropFilter: 'blur(10px)',
               }}
             >
-              {/* Scanline accent */}
-              <div
-                className="absolute top-0 left-0 right-0 h-[1px]"
-                style={{
-                  background: 'linear-gradient(90deg, transparent, #00ffd540, transparent)',
-                }}
-              />
-
               <div className="flex items-start gap-3">
-                <span className="text-lg mt-0.5 opacity-80">{alert.icon}</span>
+                <span className="text-lg mt-0.5 opacity-70">{alert.icon}</span>
                 <div>
-                  <p className="font-display text-[10px] tracking-[0.2em] text-[#00ffd5] uppercase mb-1">
-                    Neuro-Shield
+                  <p className="font-body text-[10px] tracking-widest text-text-muted uppercase mb-1">
+                    FixMyFeed
                   </p>
-                  <p className="text-sm text-[#e8e8f0] leading-relaxed font-light">
+                  <p className="text-sm text-text-primary leading-relaxed font-normal">
                     {alert.message}
                   </p>
                 </div>
@@ -90,8 +82,8 @@ export default function MindfulnessOverlay({ toxicIntercepted, rewiringPct }: Mi
 
               {/* Auto-dismiss progress bar */}
               <motion.div
-                className="absolute bottom-0 left-0 h-[1px]"
-                style={{ background: 'linear-gradient(90deg, #1a6bff, #00ffd5)' }}
+                className="absolute bottom-0 left-0 h-[2px]"
+                style={{ background: 'linear-gradient(90deg, #6b6560, #4e7754)' }}
                 initial={{ width: '100%' }}
                 animate={{ width: '0%' }}
                 transition={{ duration: 4, ease: 'linear' }}
